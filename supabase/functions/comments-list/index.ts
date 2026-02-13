@@ -15,19 +15,20 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "20"), 1), 100);
   const cursor = url.searchParams.get("cursor");
-  const mediaId = url.searchParams.get("mediaId");
+  const media_id = url.searchParams.get("media_id");
 
-  if (!mediaId) {
-    return errorResponse("mediaId query parameter is required", 400);
+  if (!media_id) {
+    return errorResponse("media_id query parameter is required", 400);
   }
 
   const db = getSupabaseClient();
 
   let query = db
-    .from("comments")
-    .select("id, content, score, status, created_at, updated_at, user_id, users!inner(username, avatar_url)")
+    .from("posts")
+    .select("id, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, users!inner(username, avatar_url)")
     .eq("status", "active")
-    .eq("media_id", mediaId)
+    .eq("media_id", media_id)
+    .is("parent_id", null)
     .order("score", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -36,37 +37,38 @@ Deno.serve(async (req) => {
     query = query.lt("created_at", cursor);
   }
 
-  const { data: comments, error } = await query;
+  const { data: posts, error } = await query;
 
   if (error) {
-    return errorResponse("Failed to fetch comments", 500);
+    return errorResponse("Failed to fetch posts", 500);
   }
 
-  // Fetch replies for each comment (max 5 per comment) - only top-level replies
-  const commentsWithReplies = await Promise.all(
-    (comments || []).map(async (c: any) => {
-      const { data: replies, error: repliesError } = await db
-        .from("comment_replies")
-        .select("id, content, score, created_at, updated_at, user_id, parent_reply_id, users!inner(username, avatar_url)")
-        .eq("comment_id", c.id)
-        .is("parent_reply_id", null)
+  // Fetch replies for each root post (max 5 per root)
+  const postsWithReplies = await Promise.all(
+    (posts || []).map(async (p: any) => {
+      const { data: replies } = await db
+        .from("posts")
+        .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, users!inner(username, avatar_url)")
+        .eq("root_id", p.id)
+        .is("parent_id", null)
+        .neq("id", p.id)
         .order("score", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(6); // Fetch 6 to determine if there are more
+        .limit(6);
 
       const hasMoreReplies = (replies?.length || 0) > 5;
       const topReplies = (replies || []).slice(0, 5);
 
       return {
-        id: c.id,
-        content: c.content,
-        score: c.score,
-        status: c.status,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-        user_id: c.user_id,
-        username: c.users?.username || "unknown",
-        avatar_url: c.users?.avatar_url || null,
+        id: p.id,
+        content: p.content,
+        score: p.score,
+        status: p.status,
+        created_at: p.created_at,
+        updated_at: p.updated_at,
+        user_id: p.user_id,
+        username: p.users?.username || "unknown",
+        avatar_url: p.users?.avatar_url || null,
         replies: topReplies.map((r: any) => ({
           id: r.id,
           content: r.content,
@@ -76,7 +78,7 @@ Deno.serve(async (req) => {
           user_id: r.user_id,
           username: r.users?.username || "unknown",
           avatar_url: r.users?.avatar_url || null,
-          parent_reply_id: r.parent_reply_id || null,
+          parent_id: r.parent_id || null,
         })),
         has_more_replies: hasMoreReplies,
         replies_count: replies?.length || 0,
@@ -85,32 +87,33 @@ Deno.serve(async (req) => {
   );
 
   if (auth) {
-    const commentIds = commentsWithReplies.map(c => c.id);
-    const replyIds = commentsWithReplies.flatMap(c => c.replies.map((r: any) => r.id));
+    const postIds = postsWithReplies.map(p => p.id);
+    const replyIds = postsWithReplies.flatMap(p => p.replies.map((r: any) => r.id));
+    const allPostIds = [...postIds, ...replyIds];
 
-    const [commentVotes, replyVotes] = await Promise.all([
-      db.from("comment_votes").select("comment_id, vote_type").in("comment_id", commentIds).eq("user_id", auth.userId),
-      db.from("reply_votes").select("reply_id, vote_type").in("reply_id", replyIds).eq("user_id", auth.userId)
-    ]);
+    const { data: userVotes } = await db
+      .from("votes")
+      .select("post_id, vote_type")
+      .in("post_id", allPostIds)
+      .eq("user_id", auth.userId);
 
-    const commentVoteMap = new Map(commentVotes.data?.map(v => [v.comment_id, v.vote_type]) || []);
-    const replyVoteMap = new Map(replyVotes.data?.map(v => [v.reply_id, v.vote_type]) || []);
+    const voteMap = new Map(userVotes?.map(v => [v.post_id, v.vote_type]) || []);
 
-    commentsWithReplies.forEach(c => {
-      (c as any).user_vote = commentVoteMap.get(c.id) || null;
-      c.replies.forEach((r: any) => {
-        (r as any).user_vote = replyVoteMap.get(r.id) || null;
+    postsWithReplies.forEach(p => {
+      (p as any).user_vote = voteMap.get(p.id) || null;
+      p.replies.forEach((r: any) => {
+        r.user_vote = voteMap.get(r.id) || null;
       });
     });
   }
 
   const nextCursor =
-    commentsWithReplies.length === limit
-      ? commentsWithReplies[commentsWithReplies.length - 1].created_at
+    posts && posts.length === limit
+      ? posts[posts.length - 1].created_at
       : null;
 
   return jsonResponse({
-    comments: commentsWithReplies,
+    comments: postsWithReplies,
     next_cursor: nextCursor,
   });
 });

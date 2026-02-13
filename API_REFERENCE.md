@@ -1,18 +1,29 @@
-# API Reference
+# Commentum API Reference
+
+## Overview
 
 **Base URL:** `https://<PROJECT_REF>.supabase.co/functions/v1`
 
 **Authentication:** Protected endpoints require `Authorization: Bearer <JWT_TOKEN>`
 
-Dear noobs, If you are wondering where would you get this fucking `JWT_TOKEN`, you will get this as `token` after you make a request to `/auth-login`.
+Get your JWT token from the `/auth-login` endpoint.
 
-#### ⚠️ DO NOT USE anilist, mal or simkl `access_token` for protected routes 
-
-**Errors:** All endpoints return `{ "error": "Error message" }`
+**All responses** use the format: `{ "data": ... }` on success or `{ "error": "..." }` on failure.
 
 ---
 
-## Authentication
+## Database Architecture
+
+The API uses a **unified posts model**:
+- All comments and replies are stored in a single `posts` table
+- Root posts have `parent_id = NULL` and `media_id = SET`
+- Replies have `parent_id = UUID` and `media_id = NULL`
+- `root_id` automatically points to the top-level post for easy hierarchical queries
+- All voting uses a unified `votes` table (previously separate comment_votes/reply_votes)
+
+---
+
+## Posts & Replies
 
 <details>
 <summary><strong>POST /auth-login</strong></summary>

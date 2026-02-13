@@ -9,39 +9,33 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  console.log("comments-create called with method:", req.method);
-  console.log("Authorization header:", req.headers.get("Authorization")?.substring(0, 20) + "...");
-
   if (req.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
 
   const auth = await authenticate(req);
   if (auth instanceof Response) {
-    console.error("Authentication failed");
     return auth;
   }
 
-  console.log("Authentication successful, userId:", auth.userId);
-
-  const rl = checkRateLimit(`comment:${auth.userId}`, RATE_LIMIT);
+  const rl = checkRateLimit(`post:${auth.userId}`, RATE_LIMIT);
   if (!rl.allowed) {
-    return errorResponse("Too many comments. Try again later.", 429);
+    return errorResponse("Too many posts. Try again later.", 429);
   }
 
-  let body: { content?: string; mediaId?: string };
+  let body: { content?: string; media_id?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
 
-  const { content, mediaId } = body;
+  const { content, media_id } = body;
   if (!content || typeof content !== "string") {
     return errorResponse("content is required and must be a string");
   }
-  if (!mediaId || typeof mediaId !== "string") {
-    return errorResponse("mediaId is required and must be a string");
+  if (!media_id || typeof media_id !== "string") {
+    return errorResponse("media_id is required and must be a string");
   }
 
   const trimmed = content.trim();
@@ -53,15 +47,25 @@ Deno.serve(async (req) => {
   }
 
   const db = getSupabaseClient();
-  const { data: comment, error } = await db
-    .from("comments")
-    .insert({ user_id: auth.userId, content: trimmed, media_id: mediaId })
-    .select("id, content, score, status, created_at, updated_at")
+
+  // Insert root post (parent_id and root_id will be NULL, auto-assigned by triggers)
+  const { data: post, error } = await db
+    .from("posts")
+    .insert({ 
+      user_id: auth.userId, 
+      parent_id: null,
+      root_id: null,
+      media_id, 
+      content: trimmed,
+      status: "active"
+    })
+    .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, users!inner(username, avatar_url)")
     .single();
 
   if (error) {
-    return errorResponse("Failed to create comment", 500);
+    console.error("Insert error:", error);
+    return errorResponse("Failed to create post", 500);
   }
 
-  return jsonResponse({ comment }, 201);
+  return jsonResponse({ post }, 201);
 });

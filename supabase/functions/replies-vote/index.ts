@@ -38,63 +38,66 @@ Deno.serve(async (req) => {
 
   const db = getSupabaseClient();
 
-  // Verify reply exists
-  const { data: reply, error: replyErr } = await db
-    .from("comment_replies")
-    .select("id")
+  // Verify post exists
+  const { data: post, error: postErr } = await db
+    .from("posts")
+    .select("id, status")
     .eq("id", reply_id)
     .maybeSingle();
 
-  if (replyErr || !reply) {
-    return errorResponse("Reply not found", 404);
+  if (postErr || !post) {
+    return errorResponse("Post not found", 404);
+  }
+  if (post.status !== "active") {
+    return errorResponse("Cannot vote on inactive post", 400);
   }
 
   // Get current vote
   const { data: currentVote } = await db
-    .from("reply_votes")
-    .select("vote_type")
-    .eq("reply_id", reply_id)
+    .from("votes")
+    .select("id, vote_type")
+    .eq("post_id", reply_id)
     .eq("user_id", auth.userId)
     .maybeSingle();
 
   let newVoteType: number | null = vote_type;
   if (currentVote && currentVote.vote_type === vote_type) {
-    // Same vote, remove it
     newVoteType = null;
   }
 
   if (newVoteType === null) {
-    // Delete the vote
-    const { error: deleteErr } = await db
-      .from("reply_votes")
-      .delete()
-      .eq("reply_id", reply_id)
-      .eq("user_id", auth.userId);
-    if (deleteErr) {
-      return errorResponse("Failed to remove vote", 500);
+    if (currentVote) {
+      const { error: deleteErr } = await db
+        .from("votes")
+        .delete()
+        .eq("id", currentVote.id);
+      if (deleteErr) {
+        return errorResponse("Failed to remove vote", 500);
+      }
     }
   } else {
-    // Upsert vote
-    const { error: voteErr } = await db
-      .from("reply_votes")
-      .upsert(
-        { reply_id, user_id: auth.userId, vote_type: newVoteType },
-        { onConflict: "reply_id,user_id" },
-      );
-    if (voteErr) {
-      return errorResponse("Failed to record vote", 500);
+    if (currentVote) {
+      await db
+        .from("votes")
+        .update({ vote_type: newVoteType })
+        .eq("id", currentVote.id);
+    } else {
+      await db
+        .from("votes")
+        .insert({ post_id: reply_id, user_id: auth.userId, vote_type: newVoteType });
     }
   }
 
-  // Recalculate score
-  const { data: newScore, error: scoreErr } = await db.rpc(
-    "recalculate_reply_score",
-    { p_reply_id: reply_id },
-  );
+  // Get updated score
+  const { data: updatedPost, error: scoreErr } = await db
+    .from("posts")
+    .select("score")
+    .eq("id", reply_id)
+    .single();
 
-  if (scoreErr) {
-    return errorResponse("Failed to recalculate score", 500);
+  if (scoreErr || !updatedPost) {
+    return errorResponse("Failed to fetch updated score", 500);
   }
 
-  return jsonResponse({ reply_id, score: newScore });
+  return jsonResponse({ reply_id, score: updatedPost.score });
 });

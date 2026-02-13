@@ -46,31 +46,31 @@ Deno.serve(async (req) => {
 
   const db = getSupabaseClient();
 
-  // Verify reply exists and belongs to user
-  const { data: reply, error: replyErr } = await db
-    .from("comment_replies")
+  // Verify post exists and belongs to user
+  const { data: post, error: postErr } = await db
+    .from("posts")
     .select("id, user_id")
     .eq("id", reply_id)
     .maybeSingle();
 
-  if (replyErr || !reply) {
-    return errorResponse("Reply not found", 404);
+  if (postErr || !post) {
+    return errorResponse("Post not found", 404);
   }
 
-  if (reply.user_id !== auth.userId) {
-    return errorResponse("You can only edit your own replies", 403);
+  if (post.user_id !== auth.userId) {
+    return errorResponse("You can only edit your own posts", 403);
   }
 
-  // Update reply
+  // Update post
   const { data: updated, error } = await db
-    .from("comment_replies")
+    .from("posts")
     .update({ content: trimmed, updated_at: new Date().toISOString() })
     .eq("id", reply_id)
     .select("id, content, score, created_at, updated_at")
     .single();
 
   if (error || !updated) {
-    return errorResponse("Failed to update reply", 500);
+    return errorResponse("Failed to update post", 500);
   }
 
   return jsonResponse({ reply: updated });

@@ -35,30 +35,30 @@ Deno.serve(async (req) => {
 
   const db = getSupabaseClient();
 
-  // Verify reply exists and belongs to user
-  const { data: reply, error: replyErr } = await db
-    .from("comment_replies")
+  // Verify post exists and belongs to user
+  const { data: post, error: postErr } = await db
+    .from("posts")
     .select("id, user_id")
     .eq("id", reply_id)
     .maybeSingle();
 
-  if (replyErr || !reply) {
-    return errorResponse("Reply not found", 404);
+  if (postErr || !post) {
+    return errorResponse("Post not found", 404);
   }
 
-  if (reply.user_id !== auth.userId) {
-    return errorResponse("You can only delete your own replies", 403);
+  if (post.user_id !== auth.userId) {
+    return errorResponse("You can only delete your own posts", 403);
   }
 
-  // Delete reply
+  // Hard delete post and cascade to votes/reports
   const { error } = await db
-    .from("comment_replies")
+    .from("posts")
     .delete()
     .eq("id", reply_id);
 
   if (error) {
-    return errorResponse("Failed to delete reply", 500);
+    return errorResponse("Failed to delete post", 500);
   }
 
-  return jsonResponse({ message: "Reply deleted successfully" });
+  return jsonResponse({ message: "Post deleted successfully" });
 });

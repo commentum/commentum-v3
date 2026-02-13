@@ -21,16 +21,16 @@ Deno.serve(async (req) => {
     return errorResponse("Too many updates. Try again later.", 429);
   }
 
-  let body: { comment_id?: string; content?: string };
+  let body: { post_id?: string; content?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
 
-  const { comment_id, content } = body;
-  if (!comment_id || typeof comment_id !== "string") {
-    return errorResponse("comment_id is required");
+  const { post_id, content } = body;
+  if (!post_id || typeof post_id !== "string") {
+    return errorResponse("post_id is required");
   }
   if (!content || typeof content !== "string") {
     return errorResponse("content is required");
@@ -46,36 +46,36 @@ Deno.serve(async (req) => {
 
   const db = getSupabaseClient();
 
-  // Verify comment exists and belongs to user
-  const { data: comment, error: commentErr } = await db
-    .from("comments")
+  // Verify post exists and belongs to user
+  const { data: post, error: postErr } = await db
+    .from("posts")
     .select("id, user_id, status")
-    .eq("id", comment_id)
+    .eq("id", post_id)
     .maybeSingle();
 
-  if (commentErr || !comment) {
-    return errorResponse("Comment not found", 404);
+  if (postErr || !post) {
+    return errorResponse("Post not found", 404);
   }
 
-  if (comment.user_id !== auth.userId) {
-    return errorResponse("You can only edit your own comments", 403);
+  if (post.user_id !== auth.userId) {
+    return errorResponse("You can only edit your own posts", 403);
   }
 
-  if (comment.status !== "active") {
-    return errorResponse("Cannot edit inactive comment", 400);
+  if (post.status !== "active") {
+    return errorResponse("Cannot edit inactive post", 400);
   }
 
-  // Update comment
+  // Update post
   const { data: updated, error } = await db
-    .from("comments")
+    .from("posts")
     .update({ content: trimmed, updated_at: new Date().toISOString() })
-    .eq("id", comment_id)
+    .eq("id", post_id)
     .select("id, content, score, status, created_at, updated_at")
     .single();
 
   if (error || !updated) {
-    return errorResponse("Failed to update comment", 500);
+    return errorResponse("Failed to update post", 500);
   }
 
-  return jsonResponse({ comment: updated });
+  return jsonResponse({ post: updated });
 });

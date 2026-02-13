@@ -1,14 +1,9 @@
 BEGIN;
 
--- Drop functions first
 DROP FUNCTION IF EXISTS public.recalculate_comment_score(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.recalculate_reply_score(UUID) CASCADE;
 DROP FUNCTION IF EXISTS public.count_unresolved_reports(UUID) CASCADE;
-
--- Drop view
 DROP VIEW IF EXISTS public.users_public CASCADE;
-
--- Drop tables in dependency order (DO NOT DROP users)
 DROP TABLE IF EXISTS public.comment_reports CASCADE;
 DROP TABLE IF EXISTS public.reply_votes CASCADE;
 DROP TABLE IF EXISTS public.comment_replies CASCADE;
@@ -16,13 +11,15 @@ DROP TABLE IF EXISTS public.comment_votes CASCADE;
 DROP TABLE IF EXISTS public.comments CASCADE;
 DROP TABLE IF EXISTS public.sessions CASCADE;
 
-COMMIT;
+-- NEW UNIFIED TABLES
+DROP TABLE IF EXISTS public.reports CASCADE;
+DROP TABLE IF EXISTS public.votes CASCADE;
+DROP TABLE IF EXISTS public.posts CASCADE;
 
--- SCHEMA CREATION
+COMMIT;
 
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Users table (will only create if missing)
 CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   provider TEXT NOT NULL,
@@ -35,7 +32,6 @@ CREATE TABLE IF NOT EXISTS public.users (
   UNIQUE (provider, provider_user_id)
 );
 
--- Sessions table
 CREATE TABLE public.sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -43,140 +39,84 @@ CREATE TABLE public.sessions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   expires_at TIMESTAMPTZ NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON public.sessions(user_id);
 
--- Comments table
-CREATE TABLE public.comments (
+CREATE TABLE public.posts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  media_id TEXT NOT NULL,
+  parent_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+  root_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
+  media_id TEXT,
   content TEXT NOT NULL CHECK (char_length(content) <= 500),
   score INTEGER NOT NULL DEFAULT 0,
-  status TEXT NOT NULL DEFAULT 'active'
-    CHECK (status IN ('active', 'hidden', 'removed', 'deleted')),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'removed', 'deleted')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT root_must_have_media CHECK (
+    (parent_id IS NULL AND media_id IS NOT NULL) OR (parent_id IS NOT NULL)
+  )
 );
-CREATE INDEX IF NOT EXISTS idx_comments_media_id ON public.comments(media_id);
-CREATE INDEX IF NOT EXISTS idx_comments_created_at ON public.comments(created_at);
-CREATE INDEX IF NOT EXISTS idx_comments_score ON public.comments(score);
 
--- Comment votes table
-CREATE TABLE public.comment_votes (
+CREATE TABLE public.votes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  comment_id UUID NOT NULL REFERENCES public.comments(id) ON DELETE CASCADE,
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   vote_type INTEGER NOT NULL CHECK (vote_type IN (1, -1)),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (comment_id, user_id)
+  UNIQUE (post_id, user_id)
 );
 
--- Comment replies table
-CREATE TABLE public.comment_replies (
+CREATE TABLE public.reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  comment_id UUID NOT NULL REFERENCES public.comments(id) ON DELETE CASCADE,
-  parent_reply_id UUID REFERENCES public.comment_replies(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  content TEXT NOT NULL CHECK (char_length(content) <= 500),
-  score INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON public.comment_replies(comment_id);
-CREATE INDEX IF NOT EXISTS idx_comment_replies_parent_reply_id ON public.comment_replies(parent_reply_id);
-CREATE INDEX IF NOT EXISTS idx_comment_replies_created_at ON public.comment_replies(created_at);
-CREATE INDEX IF NOT EXISTS idx_comment_replies_score ON public.comment_replies(score);
-
--- Reply votes table
-CREATE TABLE public.reply_votes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  reply_id UUID NOT NULL REFERENCES public.comment_replies(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  vote_type INTEGER NOT NULL CHECK (vote_type IN (1, -1)),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (reply_id, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_reply_votes_reply_id ON public.reply_votes(reply_id);
-
--- Comment reports table
-CREATE TABLE public.comment_reports (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  comment_id UUID NOT NULL REFERENCES public.comments(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES public.users(id),
+  post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
   reason TEXT NOT NULL,
   resolved BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_comment_reports_comment_id ON public.comment_reports(comment_id);
 
--- Public view
+CREATE INDEX idx_sessions_user_id ON public.sessions(user_id);
+CREATE INDEX idx_posts_media_id ON public.posts(media_id) WHERE parent_id IS NULL;
+CREATE INDEX idx_posts_root_id ON public.posts(root_id);
+CREATE INDEX idx_posts_created_at ON public.posts(created_at);
+CREATE INDEX idx_votes_post_id ON public.votes(post_id);
+CREATE INDEX idx_reports_post_id ON public.reports(post_id);
+
 CREATE OR REPLACE VIEW public.users_public AS
-SELECT id, username, role, created_at
-FROM public.users;
+SELECT id, username, role, created_at FROM public.users;
 
--- FUNCTIONS
+-- TRIGGERS FOR SCORE SYNC
 
-CREATE OR REPLACE FUNCTION public.recalculate_comment_score(p_comment_id UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_score INTEGER;
+CREATE OR REPLACE FUNCTION public.handle_post_score()
+RETURNS TRIGGER AS $$
 BEGIN
-  SELECT COALESCE(SUM(vote_type), 0)
-  INTO new_score
-  FROM public.comment_votes
-  WHERE comment_id = p_comment_id;
-
-  UPDATE public.comments
-  SET score = new_score,
-      updated_at = now()
-  WHERE id = p_comment_id;
-
-  RETURN new_score;
+  IF (TG_OP = 'INSERT') THEN
+    UPDATE public.posts SET score = score + NEW.vote_type WHERE id = NEW.post_id;
+  ELSIF (TG_OP = 'DELETE') THEN
+    UPDATE public.posts SET score = score - OLD.vote_type WHERE id = OLD.post_id;
+  ELSIF (TG_OP = 'UPDATE') THEN
+    UPDATE public.posts SET score = score - OLD.vote_type + NEW.vote_type WHERE id = NEW.post_id;
+  END IF;
+  RETURN NULL;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION public.recalculate_reply_score(p_reply_id UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  new_score INTEGER;
+CREATE TRIGGER trg_sync_post_score
+AFTER INSERT OR UPDATE OR DELETE ON public.votes
+FOR EACH ROW EXECUTE FUNCTION public.handle_post_score();
+
+-- TRIGGER FOR AUTO ROOT_ID ASSIGNMENT
+
+CREATE OR REPLACE FUNCTION public.handle_root_id()
+RETURNS TRIGGER AS $$
 BEGIN
-  SELECT COALESCE(SUM(vote_type), 0)
-  INTO new_score
-  FROM public.reply_votes
-  WHERE reply_id = p_reply_id;
-
-  UPDATE public.comment_replies
-  SET score = new_score,
-      updated_at = now()
-  WHERE id = p_reply_id;
-
-  RETURN new_score;
+  IF NEW.parent_id IS NOT NULL THEN
+    SELECT COALESCE(root_id, id) INTO NEW.root_id 
+    FROM public.posts WHERE id = NEW.parent_id;
+  END IF;
+  RETURN NEW;
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION public.count_unresolved_reports(p_comment_id UUID)
-RETURNS INTEGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  report_count INTEGER;
-BEGIN
-  SELECT COUNT(*)
-  INTO report_count
-  FROM public.comment_reports
-  WHERE comment_id = p_comment_id
-    AND resolved = false;
-
-  RETURN report_count;
-END;
-$$;
+CREATE TRIGGER trg_assign_root_id
+BEFORE INSERT ON public.posts
+FOR EACH ROW EXECUTE FUNCTION public.handle_root_id();
