@@ -52,16 +52,41 @@ Deno.serve(async (req) => {
     return errorResponse("Cannot vote on inactive comment", 400);
   }
 
-  // Upsert vote
-  const { error: voteErr } = await db
+  // Get current vote
+  const { data: currentVote } = await db
     .from("comment_votes")
-    .upsert(
-      { comment_id, user_id: auth.userId, vote_type },
-      { onConflict: "comment_id,user_id" },
-    );
+    .select("vote_type")
+    .eq("comment_id", comment_id)
+    .eq("user_id", auth.userId)
+    .maybeSingle();
 
-  if (voteErr) {
-    return errorResponse("Failed to record vote", 500);
+  let newVoteType: number | null = vote_type;
+  if (currentVote && currentVote.vote_type === vote_type) {
+    // Same vote, remove it
+    newVoteType = null;
+  }
+
+  if (newVoteType === null) {
+    // Delete the vote
+    const { error: deleteErr } = await db
+      .from("comment_votes")
+      .delete()
+      .eq("comment_id", comment_id)
+      .eq("user_id", auth.userId);
+    if (deleteErr) {
+      return errorResponse("Failed to remove vote", 500);
+    }
+  } else {
+    // Upsert vote
+    const { error: voteErr } = await db
+      .from("comment_votes")
+      .upsert(
+        { comment_id, user_id: auth.userId, vote_type: newVoteType },
+        { onConflict: "comment_id,user_id" },
+      );
+    if (voteErr) {
+      return errorResponse("Failed to record vote", 500);
+    }
   }
 
   // Recalculate score atomically

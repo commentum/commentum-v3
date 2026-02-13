@@ -1,5 +1,6 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getSupabaseClient } from "../_shared/db.ts";
+import { optionalAuthenticate } from "../_shared/auth-middleware.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -8,6 +9,8 @@ Deno.serve(async (req) => {
   if (req.method !== "GET") {
     return errorResponse("Method not allowed", 405);
   }
+
+  const auth = await optionalAuthenticate(req);
 
   const url = new URL(req.url);
   const commentId = url.searchParams.get("comment_id");
@@ -58,6 +61,19 @@ Deno.serve(async (req) => {
     user_id: r.user_id,
     username: r.users?.username || "unknown",
   }));
+
+  if (auth) {
+    const replyIds = result.map(r => r.id);
+    const { data: votes } = await db
+      .from("reply_votes")
+      .select("reply_id, vote_type")
+      .in("reply_id", replyIds)
+      .eq("user_id", auth.userId);
+    const voteMap = new Map(votes?.map(v => [v.reply_id, v.vote_type]) || []);
+    result.forEach(r => {
+      (r as any).user_vote = voteMap.get(r.id) || null;
+    });
+  }
 
   const nextCursor =
     result.length === limit ? result[result.length - 1].created_at : null;

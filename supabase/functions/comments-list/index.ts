@@ -1,5 +1,6 @@
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getSupabaseClient } from "../_shared/db.ts";
+import { optionalAuthenticate } from "../_shared/auth-middleware.ts";
 
 Deno.serve(async (req) => {
   const cors = handleCors(req);
@@ -8,6 +9,8 @@ Deno.serve(async (req) => {
   if (req.method !== "GET") {
     return errorResponse("Method not allowed", 405);
   }
+
+  const auth = await optionalAuthenticate(req);
 
   const url = new URL(req.url);
   const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "20"), 1), 100);
@@ -76,6 +79,26 @@ Deno.serve(async (req) => {
       };
     })
   );
+
+  if (auth) {
+    const commentIds = commentsWithReplies.map(c => c.id);
+    const replyIds = commentsWithReplies.flatMap(c => c.replies.map((r: any) => r.id));
+
+    const [commentVotes, replyVotes] = await Promise.all([
+      db.from("comment_votes").select("comment_id, vote_type").in("comment_id", commentIds).eq("user_id", auth.userId),
+      db.from("reply_votes").select("reply_id, vote_type").in("reply_id", replyIds).eq("user_id", auth.userId)
+    ]);
+
+    const commentVoteMap = new Map(commentVotes.data?.map(v => [v.comment_id, v.vote_type]) || []);
+    const replyVoteMap = new Map(replyVotes.data?.map(v => [v.reply_id, v.vote_type]) || []);
+
+    commentsWithReplies.forEach(c => {
+      (c as any).user_vote = commentVoteMap.get(c.id) || null;
+      c.replies.forEach((r: any) => {
+        (r as any).user_vote = replyVoteMap.get(r.id) || null;
+      });
+    });
+  }
 
   const nextCursor =
     commentsWithReplies.length === limit

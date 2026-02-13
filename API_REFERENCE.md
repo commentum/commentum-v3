@@ -122,6 +122,8 @@ Get comments with up to 5 replies each.
 - `limit` (optional, default 20, max 100)
 - `cursor` (optional) - ISO timestamp for pagination
 
+If authenticated, includes `user_vote` field for each comment and reply.
+
 Response (200):
 ```json
 {
@@ -143,7 +145,8 @@ Response (200):
         }
       ],
       "has_more_replies": false,
-      "replies_count": 1
+      "replies_count": 1,
+      "user_vote": 1
     }
   ],
   "next_cursor": "2026-02-12T..." | null
@@ -247,6 +250,8 @@ Get paginated replies for a comment.
 - `limit` (optional, default 20, max 100)
 - `cursor` (optional) - ISO timestamp for pagination
 
+If authenticated, includes `user_vote` field for each reply.
+
 Response (200):
 ```json
 {
@@ -256,7 +261,8 @@ Response (200):
       "content": "I agree!",
       "score": 2,
       "username": "jane_doe",
-      "created_at": "2026-02-12T..."
+      "created_at": "2026-02-12T...",
+      "user_vote": -1
     }
   ],
   "next_cursor": "2026-02-12T..." | null
@@ -422,7 +428,8 @@ Response (200):
   "updated_at": "ISO timestamp",
   "replies": "Reply[]",
   "has_more_replies": "boolean",
-  "replies_count": "number"
+  "replies_count": "number",
+  "user_vote": "1 | -1 | null (if authenticated)"
 }
 ```
 
@@ -434,7 +441,8 @@ Response (200):
   "score": "number",
   "username": "string",
   "created_at": "ISO timestamp",
-  "updated_at": "ISO timestamp"
+  "updated_at": "ISO timestamp",
+  "user_vote": "1 | -1 | null (if authenticated)"
 }
 ```
 

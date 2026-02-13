@@ -42,7 +42,7 @@ Authorization: Bearer eyJhbGci...
 
 **GET** `/comments-list?mediaId=anime-1&limit=10`
 
-Auth: None
+Auth: Optional (includes `user_vote` if authenticated)
 
 Response (includes up to 5 replies per comment):
 ```json
@@ -61,11 +61,13 @@ Response (includes up to 5 replies per comment):
           "content": "I agree completely!",
           "score": 3,
           "username": "jane_doe",
-          "created_at": "2026-02-12T10:05:00Z"
+          "created_at": "2026-02-12T10:05:00Z",
+          "user_vote": 1
         }
       ],
       "has_more_replies": true,
-      "replies_count": 8
+      "replies_count": 8,
+      "user_vote": null
     }
   ],
   "next_cursor": "2026-02-12T10:00:00Z"
@@ -162,7 +164,7 @@ Response:
 
 **GET** `/replies-list?comment_id=c-1&limit=20`
 
-Auth: None
+Auth: Optional (includes `user_vote` if authenticated)
 
 Response:
 ```json
@@ -173,14 +175,16 @@ Response:
       "content": "I agree completely!",
       "score": 3,
       "username": "jane_doe",
-      "created_at": "2026-02-12T10:35:00Z"
+      "created_at": "2026-02-12T10:35:00Z",
+      "user_vote": -1
     },
     {
       "id": "r-2",
       "content": "Great point!",
       "score": 1,
       "username": "bob_smith",
-      "created_at": "2026-02-12T10:40:00Z"
+      "created_at": "2026-02-12T10:40:00Z",
+      "user_vote": null
     }
   ],
   "next_cursor": "2026-02-12T10:40:00Z"
@@ -415,11 +419,11 @@ GET /comments-list?mediaId=anime-1&limit=5&cursor=2026-02-12T10:00:00Z
 
 | Task | Endpoint | Auth |
 |------|----------|------|
-| Get comments | GET `/comments-list` | No |
+| Get comments | GET `/comments-list` | Optional |
 | Create comment | POST `/comments-create` | Yes |
 | Vote comment | POST `/comments-vote` | Yes |
 | Report comment | POST `/comments-report` | Yes |
-| Get replies | GET `/replies-list` | No |
+| Get replies | GET `/replies-list` | Optional |
 | Create reply | POST `/replies-create` | Yes |
 | Vote reply | POST `/replies-vote` | Yes |
 | Get reports | GET `/moderation-reports` | Mod+ |
