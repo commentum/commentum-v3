@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   const db = getSupabaseClient();
   const { data: user, error } = await db
     .from("users")
-    .select("id, username, role, provider, created_at")
+    .select("id, username, role, provider, avatar_url, created_at")
     .eq("id", auth.userId)
     .maybeSingle();
 

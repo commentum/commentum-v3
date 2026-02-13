@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
   let query = db
     .from("comments")
-    .select("id, content, score, status, created_at, updated_at, user_id, users!inner(username)")
+    .select("id, content, score, status, created_at, updated_at, user_id, users!inner(username, avatar_url)")
     .eq("status", "active")
     .eq("media_id", mediaId)
     .order("score", { ascending: false })
@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     (comments || []).map(async (c: any) => {
       const { data: replies, error: repliesError } = await db
         .from("comment_replies")
-        .select("id, content, score, created_at, updated_at, user_id, users!inner(username)")
+        .select("id, content, score, created_at, updated_at, user_id, users!inner(username, avatar_url)")
         .eq("comment_id", c.id)
         .order("score", { ascending: false })
         .order("created_at", { ascending: false })
@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
         updated_at: c.updated_at,
         user_id: c.user_id,
         username: c.users?.username || "unknown",
+        avatar_url: c.users?.avatar_url || null,
         replies: topReplies.map((r: any) => ({
           id: r.id,
           content: r.content,
@@ -73,6 +74,7 @@ Deno.serve(async (req) => {
           updated_at: r.updated_at,
           user_id: r.user_id,
           username: r.users?.username || "unknown",
+          avatar_url: r.users?.avatar_url || null,
         })),
         has_more_replies: hasMoreReplies,
         replies_count: replies?.length || 0,

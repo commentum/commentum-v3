@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
 
   let query = db
     .from("comment_replies")
-    .select("id, content, score, created_at, updated_at, user_id, users!inner(username)")
+    .select("id, content, score, created_at, updated_at, user_id, users!inner(username, avatar_url)")
     .eq("comment_id", commentId)
     .order("score", { ascending: false })
     .order("created_at", { ascending: false })
@@ -60,6 +60,7 @@ Deno.serve(async (req) => {
     updated_at: r.updated_at,
     user_id: r.user_id,
     username: r.users?.username || "unknown",
+    avatar_url: r.users?.avatar_url || null,
   }));
 
   if (auth) {

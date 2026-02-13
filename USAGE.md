@@ -21,7 +21,8 @@ Response:
     "id": "abc-123",
     "username": "john_doe",
     "role": "user",
-    "provider": "anilist"
+    "provider": "anilist",
+    "avatar_url": "https://..."
   }
 }
 ```

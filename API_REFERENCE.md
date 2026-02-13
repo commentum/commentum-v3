@@ -36,6 +36,7 @@ Response (200):
     "username": "username",
     "role": "user",
     "provider": "anilist",
+    "avatar_url": "https://...",
     "created_at": "2026-02-12T..."
   }
 }
@@ -70,6 +71,7 @@ Response (200):
     "username": "username",
     "role": "user",
     "provider": "anilist",
+    "avatar_url": "https://...",
     "created_at": "2026-02-12T..."
   }
 }
@@ -533,8 +535,9 @@ Response (200):
   "id": "uuid",
   "content": "string (1-500 chars)",
   "score": "number",
-  "status": "active | hidden | removed",
+  "status": "active | hidden | removed | deleted",
   "username": "string",
+  "avatar_url": "string | null",
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp",
   "replies": "Reply[]",
@@ -551,6 +554,7 @@ Response (200):
   "content": "string (1-500 chars)",
   "score": "number",
   "username": "string",
+  "avatar_url": "string | null",
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp",
   "user_vote": "1 | -1 | null (if authenticated)"
@@ -564,6 +568,7 @@ Response (200):
   "username": "string",
   "role": "user | moderator | admin",
   "provider": "string",
+  "avatar_url": "string | null",
   "created_at": "ISO timestamp"
 }
 ```

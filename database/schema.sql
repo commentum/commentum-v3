@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS public.users (
   provider TEXT NOT NULL,
   provider_user_id TEXT NOT NULL,
   username TEXT NOT NULL,
+  avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'moderator', 'admin')),
   is_banned BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -8,16 +8,17 @@ const RATE_LIMIT = { maxRequests: 10, windowMs: 60_000 };
 interface ProviderUser {
   provider_user_id: string;
   username: string;
+  avatar_url?: string;
 }
 
 async function verifyMal(accessToken: string): Promise<ProviderUser | null> {
   try {
-    const res = await fetch("https://api.myanimelist.net/v2/users/@me", {
+    const res = await fetch("https://api.myanimelist.net/v2/users/@me?fields=picture", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) { await res.text(); return null; }
     const data = await res.json();
-    return { provider_user_id: String(data.id), username: data.name };
+    return { provider_user_id: String(data.id), username: data.name, avatar_url: data.picture || undefined };
   } catch { return null; }
 }
 
@@ -30,14 +31,14 @@ async function verifyAnilist(accessToken: string): Promise<ProviderUser | null> 
         Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
-        query: "query { Viewer { id name } }",
+        query: "query { Viewer { id name avatar { large } } }",
       }),
     });
     if (!res.ok) { await res.text(); return null; }
     const data = await res.json();
     const viewer = data?.data?.Viewer;
     if (!viewer) return null;
-    return { provider_user_id: String(viewer.id), username: viewer.name };
+    return { provider_user_id: String(viewer.id), username: viewer.name, avatar_url: viewer.avatar?.large || undefined };
   } catch { return null; }
 }
 
@@ -53,7 +54,7 @@ async function verifySimkl(accessToken: string): Promise<ProviderUser | null> {
     const data = await res.json();
     const account = data?.account;
     if (!account) return null;
-    return { provider_user_id: String(account.id), username: data.user?.name || `simkl_${account.id}` };
+    return { provider_user_id: String(account.id), username: data.user?.name || `simkl_${account.id}`, avatar_url: data.account?.avatar || undefined };
   } catch { return null; }
 }
 
@@ -113,9 +114,16 @@ Deno.serve(async (req) => {
     if (existingUser.is_banned) {
       return errorResponse("User is banned", 403);
     }
-    // Update username if changed
+    // Update username and avatar if changed
+    const updateData: Record<string, any> = {};
     if (existingUser.username !== providerUser.username) {
-      await db.from("users").update({ username: providerUser.username }).eq("id", existingUser.id);
+      updateData.username = providerUser.username;
+    }
+    if (providerUser.avatar_url && existingUser.avatar_url !== providerUser.avatar_url) {
+      updateData.avatar_url = providerUser.avatar_url;
+    }
+    if (Object.keys(updateData).length > 0) {
+      await db.from("users").update(updateData).eq("id", existingUser.id);
     }
     user = existingUser;
   } else {
@@ -125,6 +133,7 @@ Deno.serve(async (req) => {
         provider,
         provider_user_id: providerUser.provider_user_id,
         username: providerUser.username,
+        avatar_url: providerUser.avatar_url || null,
       })
       .select()
       .single();
