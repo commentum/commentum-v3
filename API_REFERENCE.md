@@ -8,8 +8,6 @@
 
 Get your JWT token from the `/auth` endpoint.
 
-**All responses** use the format: `{ "data": ... }` on success or `{ "error": "..." }` on failure.
-
 ---
 
 ## Database Architecture
