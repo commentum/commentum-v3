@@ -272,7 +272,7 @@ Request (nested reply to another reply):
 {
   "comment_id": "c-1",
   "content": "Great point!",
-  "parent_reply_id": "r-1"
+  "parent_id": "r-1"
 }
 ```
 
@@ -283,7 +283,7 @@ Response:
     "id": "r-3",
     "content": "I totally agree!",
     "score": 0,
-    "parent_reply_id": null,
+    "parent_id": null,
     "created_at": "2026-02-12T10:45:00Z"
   }
 }
@@ -308,7 +308,7 @@ Response:
       "score": 3,
       "username": "jane_doe",
       "avatar_url": "https://...",
-      "parent_reply_id": null,
+      "parent_id": null,
       "created_at": "2026-02-12T10:35:00Z",
       "user_vote": -1
     }
@@ -322,7 +322,7 @@ Response:
 <details>
 <summary><strong>Get Nested Replies (Replies to a Reply)</strong></summary>
 
-**GET** `/replies-list?comment_id=c-1&parent_reply_id=r-1&limit=20`
+**GET** `/replies-list?comment_id=c-1&parent_id=r-1&limit=20`
 
 Auth: Optional
 
@@ -336,7 +336,7 @@ Response:
       "score": 1,
       "username": "bob_smith",
       "avatar_url": "https://...",
-      "parent_reply_id": "r-1",
+      "parent_id": "r-1",
       "created_at": "2026-02-12T10:40:00Z",
       "user_vote": null
     }

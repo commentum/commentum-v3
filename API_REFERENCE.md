@@ -15,11 +15,12 @@ Get your JWT token from the `/auth-login` endpoint.
 ## Database Architecture
 
 The API uses a **unified posts model**:
-- All comments and replies are stored in a single `posts` table
-- Root posts have `parent_id = NULL` and `media_id = SET`
-- Replies have `parent_id = UUID` and `media_id = NULL`
-- `root_id` automatically points to the top-level post for easy hierarchical queries
-- All voting uses a unified `votes` table (previously separate comment_votes/reply_votes)
+- All comments and replies are stored in a single `posts` table with self-referencing hierarchy
+- **Root posts** (comments): `parent_id = NULL`, `media_id = <set>`, `root_id = self`
+- **Top-level replies**: `parent_id = <root post UUID>`, `media_id = NULL`, `root_id = <root post UUID>`
+- **Nested replies**: `parent_id = <other reply UUID>`, `media_id = NULL`, `root_id = <original root UUID>`
+- `root_id` automatically assigned by trigger for hierarchical queries
+- All voting uses a unified `votes` table (replaces separate comment_votes/reply_votes tables)
 
 ---
 
@@ -171,14 +172,14 @@ Response (200):
 <details>
 <summary><strong>POST /comments-vote</strong> (Protected)</summary>
 
-Vote on a comment.
+Vote on a comment (root post).
 
 **Limits:** 10 req/min per user
 
 Request:
 ```json
 {
-  "comment_id": "uuid",
+  "post_id": "uuid",
   "vote_type": 1
 }
 ```
@@ -188,7 +189,7 @@ Request:
 Response (200):
 ```json
 {
-  "comment_id": "uuid",
+  "post_id": "uuid",
   "score": 6
 }
 ```
@@ -205,7 +206,7 @@ Report a comment. Auto-hides at 5+ unresolved reports.
 Request:
 ```json
 {
-  "comment_id": "uuid",
+  "post_id": "uuid",
   "reason": "Spam"
 }
 ```
@@ -229,7 +230,7 @@ Update your own comment.
 Request:
 ```json
 {
-  "comment_id": "uuid",
+  "post_id": "uuid",
   "content": "Updated comment text"
 }
 ```
@@ -260,7 +261,7 @@ Delete your own comment (marks as deleted).
 Request:
 ```json
 {
-  "comment_id": "uuid"
+  "post_id": "uuid"
 }
 ```
 
@@ -284,16 +285,23 @@ Response (200):
 <details>
 <summary><strong>POST /replies-create</strong> (Protected)</summary>
 
-Create a reply to a comment or a nested reply to another reply.
+Create a reply to a comment (root post) or a nested reply to another reply.
 
 **Limits:** 500 chars | 10 req/min per user
 
-Request:
+**Request for top-level reply** (replying to a comment):
 ```json
 {
-  "comment_id": "uuid",
-  "content": "I agree!",
-  "parent_reply_id": "uuid (optional - for nested replies)"
+  "parent_id": "uuid (root post id)",
+  "content": "I agree!"
+}
+```
+
+**Request for nested reply** (replying to another reply):
+```json
+{
+  "parent_id": "uuid (reply id)",
+  "content": "Great point!"
 }
 ```
 
@@ -304,7 +312,8 @@ Response (201):
     "id": "uuid",
     "content": "I agree!",
     "score": 0,
-    "parent_reply_id": null,
+    "parent_id": "uuid",
+    "root_id": "uuid",
     "created_at": "2026-02-12T...",
     "updated_at": "2026-02-12T..."
   }
@@ -316,11 +325,11 @@ Response (201):
 <details>
 <summary><strong>GET /replies-list</strong></summary>
 
-Get paginated replies for a comment or nested replies for a reply.
+Get paginated replies for a root post (top-level replies) or nested replies for a specific reply.
 
 **Query Params:**
-- `comment_id` (required)
-- `parent_reply_id` (optional) - fetch replies to a specific reply (nested replies)
+- `root_id` (required) - the root post UUID
+- `parent_id` (optional) - to fetch replies to a specific reply (nested replies)
 - `limit` (optional, default 20, max 100)
 - `cursor` (optional) - ISO timestamp for pagination
 
@@ -334,8 +343,8 @@ Response (200):
       "score": 2,
       "username": "jane_doe",
       "avatar_url": "https://...",
+      "parent_id": "root-uuid-or-reply-uuid",
       "created_at": "2026-02-12T...",
-      "parent_reply_id": null,
       "user_vote": 1
     }
   ],
@@ -355,7 +364,7 @@ Vote on a reply.
 Request:
 ```json
 {
-  "reply_id": "uuid",
+  "post_id": "uuid",
   "vote_type": 1
 }
 ```
@@ -365,7 +374,7 @@ Request:
 Response (200):
 ```json
 {
-  "reply_id": "uuid",
+  "post_id": "uuid",
   "score": 3
 }
 ```

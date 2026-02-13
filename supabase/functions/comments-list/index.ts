@@ -50,7 +50,6 @@ Deno.serve(async (req) => {
         .from("posts")
         .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, users!inner(username, avatar_url)")
         .eq("root_id", p.id)
-        .is("parent_id", null)
         .neq("id", p.id)
         .order("score", { ascending: false })
         .order("created_at", { ascending: false })
