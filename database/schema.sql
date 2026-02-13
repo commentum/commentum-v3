@@ -68,8 +68,9 @@ CREATE TABLE public.votes (
 CREATE TABLE public.reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   post_id UUID NOT NULL REFERENCES public.posts(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
+  reporter_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
   reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'resolved', 'dismissed')),
   resolved BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

@@ -24,29 +24,29 @@ Deno.serve(async (req) => {
   const offset = Math.max(parseInt(url.searchParams.get("offset") || "0"), 0);
 
   const { data: reports, error } = await db
-    .from("comment_reports")
+    .from("reports")
     .select(`
-      id, reason, created_at, resolved,
-      comment_id,
-      comments!inner(id, content, status, user_id, users!inner(username)),
-      users!comment_reports_user_id_fkey(username)
+      id, reason, created_at, resolved, status,
+      post_id,
+      posts!inner(id, content, status, user_id, users!inner(username)),
+      users!reports_reporter_id_fkey(username)
     `)
-    .eq("resolved", false)
+    .eq("status", "pending")
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
   if (error) {
-    return errorResponse("Failed to fetch reports", 500);
+    return errorResponse(`Failed to fetch reports: ${error.message}`, 500);
   }
 
   const result = (reports || []).map((r: any) => ({
     id: r.id,
     reason: r.reason,
     created_at: r.created_at,
-    comment_id: r.comment_id,
-    comment_content: r.comments?.content,
-    comment_status: r.comments?.status,
-    comment_author: r.comments?.users?.username,
+    comment_id: r.post_id,
+    comment_content: r.posts?.content,
+    comment_status: r.posts?.status,
+    comment_author: r.posts?.users?.username,
     reporter: r.users?.username,
   }));
 

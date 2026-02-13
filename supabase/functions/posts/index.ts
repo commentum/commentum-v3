@@ -216,8 +216,7 @@ Deno.serve(async (req) => {
                     // First level replies to a root post
                     query = query
                         .eq("root_id", root_id)
-                        .is("parent_id", null)
-                        .neq("id", root_id);
+                        .eq("parent_id", root_id);
                 }
             }
 

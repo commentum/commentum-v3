@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
         });
 
     if (error) {
-        return errorResponse("Failed to submit report", 500);
+        return errorResponse(`Failed to submit report: ${error.message}`, 500);
     }
 
     // Check report count for auto-hide (e.g. 5 reports)

@@ -35,7 +35,7 @@ Deno.serve(async (req) => {
   const db = getSupabaseClient();
 
   const { data: comment, error } = await db
-    .from("comments")
+    .from("posts")
     .update({ status, updated_at: new Date().toISOString() })
     .eq("id", comment_id)
     .select("id, status, updated_at")
