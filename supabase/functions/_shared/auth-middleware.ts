@@ -92,31 +92,10 @@ export async function optionalAuthenticate(req: Request): Promise<AuthContext | 
     return null;
   }
 
-  const db = getSupabaseClient();
-  const { data: session } = await db
-    .from("sessions")
-    .select("id, user_id, revoked, expires_at")
-    .eq("id", payload.sid)
-    .maybeSingle();
-
-  if (!session || session.revoked || new Date(session.expires_at) < new Date()) {
-    return null;
-  }
-
-  const { data: user } = await db
-    .from("users")
-    .select("id, is_banned, role")
-    .eq("id", payload.sub)
-    .maybeSingle();
-
-  if (!user || user.is_banned) {
-    return null;
-  }
-
   return {
     userId: payload.sub,
     sessionId: payload.sid,
     provider: payload.provider,
-    role: user.role,
+    role: "user",
   };
 }
