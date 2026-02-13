@@ -28,7 +28,15 @@ Deno.serve(async (req) => {
     .select(`
       id, reason, created_at, resolved, status,
       post_id,
-      posts!inner(id, content, status, user_id, users!inner(username)),
+      posts!inner(
+        id, content, status, user_id, 
+        users!inner(username, avatar_url),
+        parent_id,
+        parent:posts!parent_id(
+          id, content, 
+          users(username)
+        )
+      ),
       users!reports_reporter_id_fkey(username)
     `)
     .eq("status", "pending")
@@ -47,6 +55,9 @@ Deno.serve(async (req) => {
     comment_content: r.posts?.content,
     comment_status: r.posts?.status,
     comment_author: r.posts?.users?.username,
+    comment_author_avatar: r.posts?.users?.avatar_url,
+    parent_content: r.posts?.parent?.content,
+    parent_author: r.posts?.parent?.users?.username,
     reporter: r.users?.username,
   }));
 
