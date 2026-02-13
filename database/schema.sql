@@ -112,9 +112,7 @@ CREATE OR REPLACE VIEW public.users_public AS
 SELECT id, username, role, created_at
 FROM public.users;
 
--- ============================================================
 -- FUNCTIONS
--- ============================================================
 
 CREATE OR REPLACE FUNCTION public.recalculate_comment_score(p_comment_id UUID)
 RETURNS INTEGER

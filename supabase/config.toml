@@ -19,7 +19,28 @@ verify_jwt = false
 [functions.comments-vote]
 verify_jwt = false
 
+[functions.comments-update]
+verify_jwt = false
+
+[functions.comments-delete]
+verify_jwt = false
+
 [functions.comments-report]
+verify_jwt = false
+
+[functions.replies-create]
+verify_jwt = false
+
+[functions.replies-list]
+verify_jwt = false
+
+[functions.replies-vote]
+verify_jwt = false
+
+[functions.replies-update]
+verify_jwt = false
+
+[functions.replies-delete]
 verify_jwt = false
 
 [functions.moderation-reports]
