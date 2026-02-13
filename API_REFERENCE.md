@@ -6,7 +6,7 @@
 
 **Authentication:** Protected endpoints require `Authorization: Bearer <JWT_TOKEN>`
 
-Get your JWT token from the `/auth-login` endpoint.
+Get your JWT token from the `/auth` endpoint.
 
 **All responses** use the format: `{ "data": ... }` on success or `{ "error": "..." }` on failure.
 
@@ -24,32 +24,32 @@ The API uses a **unified posts model**:
 
 ---
 
-## Posts & Replies
+## Auth
 
 <details>
-<summary><strong>POST /auth-login</strong></summary>
+<summary><strong>POST /auth</strong> - Login</summary>
 
-Login with OAuth provider.
+Login with a provider access token.
+
+**Limits:** 10 req/min per IP
 
 Request:
 ```json
 {
-  "provider": "anilist",
-  "access_token": "anilist_access_token"
+  "provider": "mal | anilist | simkl",
+  "access_token": "provider_token"
 }
 ```
 
 Response (200):
 ```json
 {
-  "token": "eyJhbGci...",
+  "token": "jwt_token",
   "user": {
     "id": "uuid",
-    "username": "username",
+    "username": "user",
     "role": "user",
-    "provider": "anilist",
-    "avatar_url": "https://...",
-    "created_at": "2026-02-12T..."
+    "provider": "mal"
   }
 }
 ```
@@ -57,9 +57,12 @@ Response (200):
 </details>
 
 <details>
-<summary><strong>POST /auth-logout</strong> (Protected)</summary>
+<summary><strong>DELETE /auth</strong> - Logout</summary>
 
 Revoke current session.
+
+Request Headers:
+`Authorization: Bearer <token>`
 
 Response (200):
 ```json
@@ -71,9 +74,12 @@ Response (200):
 </details>
 
 <details>
-<summary><strong>GET /auth-me</strong> (Protected)</summary>
+<summary><strong>GET /me</strong> - Get Profile</summary>
 
 Get current user profile.
+
+Request Headers:
+`Authorization: Bearer <token>`
 
 Response (200):
 ```json
@@ -93,31 +99,42 @@ Response (200):
 
 ---
 
-## Comments
+## Posts Management
 
 <details>
-<summary><strong>POST /comments-create</strong> (Protected)</summary>
+<summary><strong>POST /posts</strong> (Protected) - Create</summary>
 
-Create a comment.
+Create a comment (root post) or a reply.
 
-**Limits:** 500 chars | 5 req/min per user
+**Limits:** 500 chars | 5 req/min per user (root) | 10 req/min (reply)
 
-Request:
+**Request (Create Comment):**
 ```json
 {
-  "mediaId": "anime-123",
+  "media_id": "anime-123",
   "content": "Great anime!"
+}
+```
+
+**Request (Create Reply):**
+```json
+{
+  "parent_id": "uuid (post id to reply to)",
+  "content": "I agree!"
 }
 ```
 
 Response (201):
 ```json
 {
-  "comment": {
+  "post": {
     "id": "uuid",
     "content": "Great anime!",
     "score": 0,
     "status": "active",
+    "parent_id": null, // or uuid if reply
+    "root_id": "uuid", // auto-assigned
+    "media_id": "anime-123", // or null if reply
     "created_at": "2026-02-12T...",
     "updated_at": "2026-02-12T..."
   }
@@ -127,18 +144,80 @@ Response (201):
 </details>
 
 <details>
-<summary><strong>GET /comments-list</strong></summary>
+<summary><strong>PATCH /posts</strong> (Protected) - Update</summary>
 
-Get comments with up to 5 replies each.
+Update your own post (comment or reply).
+
+**Limits:** 10 req/min per user
+
+Request:
+```json
+{
+  "id": "uuid",
+  "content": "Updated content"
+}
+```
+
+Response (200):
+```json
+{
+  "post": {
+    "id": "uuid",
+    "content": "Updated content",
+    "score": 5,
+    "status": "active",
+    "updated_at": "2026-02-12T..."
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>DELETE /posts</strong> (Protected) - Delete</summary>
+
+Delete your own post (soft delete).
+
+**Limits:** 10 req/min per user
+
+**Request:**
+Query param `?id=uuid` OR body:
+```json
+{
+  "id": "uuid"
+}
+```
+
+Response (200):
+```json
+{
+  "post": {
+    "id": "uuid",
+    "status": "deleted",
+    "updated_at": "2026-02-12T..."
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>GET /posts</strong> - List</summary>
+
+Get comments (with reply previews) or replies.
 
 **Query Params:**
-- `mediaId` (required)
+- `media_id`: List root comments for a media.
+- `root_id`: List replies for a root post.
+- `parent_id`: List replies for a direct parent (nested).
 - `limit` (optional, default 20, max 100)
 - `cursor` (optional) - ISO timestamp for pagination
 
-If authenticated, includes `user_vote` field for each comment and reply.
+*Note: One of `media_id`, `root_id`, or `parent_id` is required.*
 
-Response (200):
+If authenticated, includes `user_vote` field.
+
+Response (200 - Comments):
 ```json
 {
   "comments": [
@@ -148,33 +227,39 @@ Response (200):
       "score": 5,
       "status": "active",
       "username": "john_doe",
-      "created_at": "2026-02-12T...",
-      "replies": [
-        {
-          "id": "uuid",
-          "content": "I agree!",
-          "score": 2,
-          "username": "jane_doe",
-          "created_at": "2026-02-12T..."
-        }
-      ],
+      "replies": [ ... ],
       "has_more_replies": false,
       "replies_count": 1,
       "user_vote": 1
     }
   ],
-  "next_cursor": "2026-02-12T..." | null
+  "next_cursor": "..."
+}
+```
+
+Response (200 - Replies):
+```json
+{
+  "replies": [
+    {
+      "id": "uuid",
+      "content": "I agree!",
+      "score": 2,
+      ...
+    }
+  ],
+  "next_cursor": "..."
 }
 ```
 
 </details>
 
 <details>
-<summary><strong>POST /comments-vote</strong> (Protected)</summary>
+<summary><strong>POST /votes</strong> (Protected)</summary>
 
-Vote on a comment (root post).
+Vote on a post (comment or reply).
 
-**Limits:** 10 req/min per user
+**Limits:** 30 req/min per user
 
 Request:
 ```json
@@ -197,9 +282,9 @@ Response (200):
 </details>
 
 <details>
-<summary><strong>POST /comments-report</strong> (Protected)</summary>
+<summary><strong>POST /reports</strong> (Protected)</summary>
 
-Report a comment. Auto-hides at 5+ unresolved reports.
+Report a post. Auto-hides at 5+ unresolved reports.
 
 **Limits:** 5 req/min per user
 
@@ -215,220 +300,6 @@ Response (201):
 ```json
 {
   "message": "Report submitted"
-}
-```
-
-</details>
-
-<details>
-<summary><strong>POST /comments-update</strong> (Protected)</summary>
-
-Update your own comment.
-
-**Limits:** 10 req/min per user
-
-Request:
-```json
-{
-  "post_id": "uuid",
-  "content": "Updated comment text"
-}
-```
-
-Response (200):
-```json
-{
-  "comment": {
-    "id": "uuid",
-    "content": "Updated comment text",
-    "score": 5,
-    "status": "active",
-    "created_at": "2026-02-12T...",
-    "updated_at": "2026-02-12T..."
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>POST /comments-delete</strong> (Protected)</summary>
-
-Delete your own comment (marks as deleted).
-
-**Limits:** 10 req/min per user
-
-Request:
-```json
-{
-  "post_id": "uuid"
-}
-```
-
-Response (200):
-```json
-{
-  "comment": {
-    "id": "uuid",
-    "status": "deleted",
-    "updated_at": "2026-02-12T..."
-  }
-}
-```
-
-</details>
-
----
-
-## Replies
-
-<details>
-<summary><strong>POST /replies-create</strong> (Protected)</summary>
-
-Create a reply to a comment (root post) or a nested reply to another reply.
-
-**Limits:** 500 chars | 10 req/min per user
-
-**Request for top-level reply** (replying to a comment):
-```json
-{
-  "parent_id": "uuid (root post id)",
-  "content": "I agree!"
-}
-```
-
-**Request for nested reply** (replying to another reply):
-```json
-{
-  "parent_id": "uuid (reply id)",
-  "content": "Great point!"
-}
-```
-
-Response (201):
-```json
-{
-  "reply": {
-    "id": "uuid",
-    "content": "I agree!",
-    "score": 0,
-    "parent_id": "uuid",
-    "root_id": "uuid",
-    "created_at": "2026-02-12T...",
-    "updated_at": "2026-02-12T..."
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>GET /replies-list</strong></summary>
-
-Get paginated replies for a root post (top-level replies) or nested replies for a specific reply.
-
-**Query Params:**
-- `root_id` (required) - the root post UUID
-- `parent_id` (optional) - to fetch replies to a specific reply (nested replies)
-- `limit` (optional, default 20, max 100)
-- `cursor` (optional) - ISO timestamp for pagination
-
-Response (200):
-```json
-{
-  "replies": [
-    {
-      "id": "uuid",
-      "content": "I agree!",
-      "score": 2,
-      "username": "jane_doe",
-      "avatar_url": "https://...",
-      "parent_id": "root-uuid-or-reply-uuid",
-      "created_at": "2026-02-12T...",
-      "user_vote": 1
-    }
-  ],
-  "next_cursor": "2026-02-12T..." | null
-}
-```
-
-</details>
-
-<details>
-<summary><strong>POST /replies-vote</strong> (Protected)</summary>
-
-Vote on a reply.
-
-**Limits:** 10 req/min per user
-
-Request:
-```json
-{
-  "post_id": "uuid",
-  "vote_type": 1
-}
-```
-
-`vote_type`: `1` (upvote) or `-1` (downvote)
-
-Response (200):
-```json
-{
-  "post_id": "uuid",
-  "score": 3
-}
-```
-
-</details>
-
-<details>
-<summary><strong>POST /replies-update</strong> (Protected)</summary>
-
-Update your own reply.
-
-**Limits:** 10 req/min per user
-
-Request:
-```json
-{
-  "reply_id": "uuid",
-  "content": "Updated reply text"
-}
-```
-
-Response (200):
-```json
-{
-  "reply": {
-    "id": "uuid",
-    "content": "Updated reply text",
-    "score": 2,
-    "created_at": "2026-02-12T...",
-    "updated_at": "2026-02-12T..."
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><strong>POST /replies-delete</strong> (Protected)</summary>
-
-Delete your own reply.
-
-**Limits:** 10 req/min per user
-
-Request:
-```json
-{
-  "reply_id": "uuid"
-}
-```
-
-Response (200):
-```json
-{
-  "message": "Reply deleted successfully"
 }
 ```
 
@@ -541,12 +412,12 @@ Response (200):
 
 | Endpoint | Limit |
 |----------|-------|
-| `/auth-login` | 10/min per IP |
-| `/comments-create` | 5/min per user |
-| `/comments-vote` | 10/min per user |
-| `/comments-report` | 5/min per user |
-| `/replies-create` | 10/min per user |
-| `/replies-vote` | 10/min per user |
+| `/auth` | 10/min per IP |
+| `/posts` (Create Comment) | 5/min per user |
+| `/posts` (Create Reply) | 10/min per user |
+| `/posts` (Update/Delete) | 10/min per user |
+| `/votes` | 30/min per user |
+| `/reports` | 5/min per user |
 
 ---
 

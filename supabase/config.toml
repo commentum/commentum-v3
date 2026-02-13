@@ -1,46 +1,19 @@
 [api]
 enabled = true
 
-[functions.auth-login]
+[functions.posts]
 verify_jwt = false
 
-[functions.auth-logout]
+[functions.votes]
 verify_jwt = false
 
-[functions.auth-me]
+[functions.reports]
 verify_jwt = false
 
-[functions.comments-create]
+[functions.auth]
 verify_jwt = false
 
-[functions.comments-list]
-verify_jwt = false
-
-[functions.comments-vote]
-verify_jwt = false
-
-[functions.comments-update]
-verify_jwt = false
-
-[functions.comments-delete]
-verify_jwt = false
-
-[functions.comments-report]
-verify_jwt = false
-
-[functions.replies-create]
-verify_jwt = false
-
-[functions.replies-list]
-verify_jwt = false
-
-[functions.replies-vote]
-verify_jwt = false
-
-[functions.replies-update]
-verify_jwt = false
-
-[functions.replies-delete]
+[functions.me]
 verify_jwt = false
 
 [functions.moderation-reports]
