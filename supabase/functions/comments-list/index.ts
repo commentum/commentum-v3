@@ -42,13 +42,14 @@ Deno.serve(async (req) => {
     return errorResponse("Failed to fetch comments", 500);
   }
 
-  // Fetch replies for each comment (max 5 per comment)
+  // Fetch replies for each comment (max 5 per comment) - only top-level replies
   const commentsWithReplies = await Promise.all(
     (comments || []).map(async (c: any) => {
       const { data: replies, error: repliesError } = await db
         .from("comment_replies")
-        .select("id, content, score, created_at, updated_at, user_id, users!inner(username, avatar_url)")
+        .select("id, content, score, created_at, updated_at, user_id, parent_reply_id, users!inner(username, avatar_url)")
         .eq("comment_id", c.id)
+        .is("parent_reply_id", null)
         .order("score", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(6); // Fetch 6 to determine if there are more
@@ -75,6 +76,7 @@ Deno.serve(async (req) => {
           user_id: r.user_id,
           username: r.users?.username || "unknown",
           avatar_url: r.users?.avatar_url || null,
+          parent_reply_id: r.parent_reply_id || null,
         })),
         has_more_replies: hasMoreReplies,
         replies_count: replies?.length || 0,

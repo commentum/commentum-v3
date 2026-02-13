@@ -14,6 +14,7 @@ Deno.serve(async (req) => {
 
   const url = new URL(req.url);
   const commentId = url.searchParams.get("comment_id");
+  const parentReplyId = url.searchParams.get("parent_reply_id");
   const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") || "20"), 1), 100);
   const cursor = url.searchParams.get("cursor");
 
@@ -36,11 +37,20 @@ Deno.serve(async (req) => {
 
   let query = db
     .from("comment_replies")
-    .select("id, content, score, created_at, updated_at, user_id, users!inner(username, avatar_url)")
+    .select("id, content, score, created_at, updated_at, user_id, parent_reply_id, users!inner(username, avatar_url)")
     .eq("comment_id", commentId)
     .order("score", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("created_at", { ascending: false });
+
+  // Filter by parent_reply_id if provided (for nested replies)
+  if (parentReplyId) {
+    query = query.eq("parent_reply_id", parentReplyId);
+  } else {
+    // Only show top-level replies if no parent specified
+    query = query.is("parent_reply_id", null);
+  }
+
+  query = query.limit(limit);
 
   if (cursor) {
     query = query.lt("created_at", cursor);
@@ -61,6 +71,7 @@ Deno.serve(async (req) => {
     user_id: r.user_id,
     username: r.users?.username || "unknown",
     avatar_url: r.users?.avatar_url || null,
+    parent_reply_id: r.parent_reply_id || null,
   }));
 
   if (auth) {

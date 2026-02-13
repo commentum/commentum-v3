@@ -75,6 +75,7 @@ CREATE TABLE public.comment_votes (
 CREATE TABLE public.comment_replies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comment_id UUID NOT NULL REFERENCES public.comments(id) ON DELETE CASCADE,
+  parent_reply_id UUID REFERENCES public.comment_replies(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   content TEXT NOT NULL CHECK (char_length(content) <= 500),
   score INTEGER NOT NULL DEFAULT 0,
@@ -82,6 +83,7 @@ CREATE TABLE public.comment_replies (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_comment_replies_comment_id ON public.comment_replies(comment_id);
+CREATE INDEX IF NOT EXISTS idx_comment_replies_parent_reply_id ON public.comment_replies(parent_reply_id);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_created_at ON public.comment_replies(created_at);
 CREATE INDEX IF NOT EXISTS idx_comment_replies_score ON public.comment_replies(score);
 

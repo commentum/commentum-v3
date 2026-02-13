@@ -259,11 +259,20 @@ Response:
 
 Auth: Required
 
-Request:
+Request (top-level reply):
 ```json
 {
   "comment_id": "c-1",
   "content": "I totally agree!"
+}
+```
+
+Request (nested reply to another reply):
+```json
+{
+  "comment_id": "c-1",
+  "content": "Great point!",
+  "parent_reply_id": "r-1"
 }
 ```
 
@@ -274,8 +283,65 @@ Response:
     "id": "r-3",
     "content": "I totally agree!",
     "score": 0,
+    "parent_reply_id": null,
     "created_at": "2026-02-12T10:45:00Z"
   }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Get All Replies for Comment (Top-level Only)</strong></summary>
+
+**GET** `/replies-list?comment_id=c-1&limit=20`
+
+Auth: Optional (includes `user_vote` if authenticated)
+
+Response:
+```json
+{
+  "replies": [
+    {
+      "id": "r-1",
+      "content": "I agree completely!",
+      "score": 3,
+      "username": "jane_doe",
+      "avatar_url": "https://...",
+      "parent_reply_id": null,
+      "created_at": "2026-02-12T10:35:00Z",
+      "user_vote": -1
+    }
+  ],
+  "next_cursor": "2026-02-12T10:35:00Z"
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Get Nested Replies (Replies to a Reply)</strong></summary>
+
+**GET** `/replies-list?comment_id=c-1&parent_reply_id=r-1&limit=20`
+
+Auth: Optional
+
+Response:
+```json
+{
+  "replies": [
+    {
+      "id": "r-2",
+      "content": "Great point!",
+      "score": 1,
+      "username": "bob_smith",
+      "avatar_url": "https://...",
+      "parent_reply_id": "r-1",
+      "created_at": "2026-02-12T10:40:00Z",
+      "user_vote": null
+    }
+  ],
+  "next_cursor": null
 }
 ```
 

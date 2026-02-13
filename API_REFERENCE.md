@@ -273,7 +273,7 @@ Response (200):
 <details>
 <summary><strong>POST /replies-create</strong> (Protected)</summary>
 
-Create a reply to a comment.
+Create a reply to a comment or a nested reply to another reply.
 
 **Limits:** 500 chars | 10 req/min per user
 
@@ -281,7 +281,8 @@ Request:
 ```json
 {
   "comment_id": "uuid",
-  "content": "I agree!"
+  "content": "I agree!",
+  "parent_reply_id": "uuid (optional - for nested replies)"
 }
 ```
 
@@ -292,6 +293,7 @@ Response (201):
     "id": "uuid",
     "content": "I agree!",
     "score": 0,
+    "parent_reply_id": null,
     "created_at": "2026-02-12T...",
     "updated_at": "2026-02-12T..."
   }
@@ -303,14 +305,13 @@ Response (201):
 <details>
 <summary><strong>GET /replies-list</strong></summary>
 
-Get paginated replies for a comment.
+Get paginated replies for a comment or nested replies for a reply.
 
 **Query Params:**
 - `comment_id` (required)
+- `parent_reply_id` (optional) - fetch replies to a specific reply (nested replies)
 - `limit` (optional, default 20, max 100)
 - `cursor` (optional) - ISO timestamp for pagination
-
-If authenticated, includes `user_vote` field for each reply.
 
 Response (200):
 ```json
@@ -321,8 +322,10 @@ Response (200):
       "content": "I agree!",
       "score": 2,
       "username": "jane_doe",
+      "avatar_url": "https://...",
       "created_at": "2026-02-12T...",
-      "user_vote": -1
+      "parent_reply_id": null,
+      "user_vote": 1
     }
   ],
   "next_cursor": "2026-02-12T..." | null
@@ -555,6 +558,7 @@ Response (200):
   "score": "number",
   "username": "string",
   "avatar_url": "string | null",
+  "parent_reply_id": "uuid | null (for nested replies)",
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp",
   "user_vote": "1 | -1 | null (if authenticated)"

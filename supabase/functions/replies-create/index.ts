@@ -29,14 +29,14 @@ Deno.serve(async (req) => {
     return errorResponse("Too many replies. Try again later.", 429);
   }
 
-  let body: { content?: string; comment_id?: string };
+  let body: { content?: string; comment_id?: string; parent_reply_id?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
 
-  const { content, comment_id } = body;
+  const { content, comment_id, parent_reply_id } = body;
   if (!content || typeof content !== "string") {
     return errorResponse("content is required and must be a string");
   }
@@ -65,10 +65,28 @@ Deno.serve(async (req) => {
     return errorResponse("Comment not found", 404);
   }
 
+  // If parent_reply_id is provided, verify it exists
+  if (parent_reply_id) {
+    const { data: parentReply, error: parentErr } = await db
+      .from("comment_replies")
+      .select("id, comment_id")
+      .eq("id", parent_reply_id)
+      .maybeSingle();
+
+    if (parentErr || !parentReply) {
+      return errorResponse("Parent reply not found", 404);
+    }
+
+    // Verify parent reply belongs to the same comment
+    if (parentReply.comment_id !== comment_id) {
+      return errorResponse("Parent reply belongs to a different comment", 400);
+    }
+  }
+
   const { data: reply, error } = await db
     .from("comment_replies")
-    .insert({ user_id: auth.userId, content: trimmed, comment_id })
-    .select("id, content, score, created_at, updated_at")
+    .insert({ user_id: auth.userId, content: trimmed, comment_id, parent_reply_id: parent_reply_id || null })
+    .select("id, content, score, created_at, updated_at, parent_reply_id")
     .single();
 
   if (error) {
