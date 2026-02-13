@@ -1,0 +1,32 @@
+[api]
+enabled = true
+
+[functions.auth-login]
+verify_jwt = false
+
+[functions.auth-logout]
+verify_jwt = false
+
+[functions.auth-me]
+verify_jwt = false
+
+[functions.comments-create]
+verify_jwt = false
+
+[functions.comments-list]
+verify_jwt = false
+
+[functions.comments-vote]
+verify_jwt = false
+
+[functions.comments-report]
+verify_jwt = false
+
+[functions.moderation-reports]
+verify_jwt = false
+
+[functions.moderation-comment-status]
+verify_jwt = false
+
+[functions.moderation-ban-user]
+verify_jwt = false
