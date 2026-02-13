@@ -27,8 +27,9 @@ export async function authenticate(req: Request): Promise<AuthContext | Response
   let payload: JwtPayload;
   try {
     payload = await verifyJwt(token);
-  } catch {
-    return errorResponse("Invalid or expired token", 401);
+  } catch (error) {
+    console.error("JWT verification failed:", error);
+    return errorResponse("Invalid JWT token", 401);
   }
 
   const db = getSupabaseClient();
@@ -38,8 +39,14 @@ export async function authenticate(req: Request): Promise<AuthContext | Response
     .eq("id", payload.sid)
     .maybeSingle();
 
-  if (!session || session.revoked || new Date(session.expires_at) < new Date()) {
-    return errorResponse("Session invalid or expired", 401);
+  if (!session) {
+    return errorResponse("Session not found", 401);
+  }
+  if (session.revoked) {
+    return errorResponse("Session revoked", 401);
+  }
+  if (new Date(session.expires_at) < new Date()) {
+    return errorResponse("Session expired", 401);
   }
 
   const { data: user } = await db
@@ -48,8 +55,11 @@ export async function authenticate(req: Request): Promise<AuthContext | Response
     .eq("id", payload.sub)
     .maybeSingle();
 
-  if (!user || user.is_banned) {
-    return errorResponse(user?.is_banned ? "User is banned" : "User not found", 403);
+  if (!user) {
+    return errorResponse("User not found", 401);
+  }
+  if (user.is_banned) {
+    return errorResponse("User is banned", 403);
   }
 
   return {

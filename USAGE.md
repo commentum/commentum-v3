@@ -155,6 +155,64 @@ Response:
 
 </details>
 
+<details>
+<summary><strong>Update Your Comment</strong></summary>
+
+**POST** `/comments-update`
+
+Auth: Required
+
+Request:
+```json
+{
+  "comment_id": "c-1",
+  "content": "Updated comment text"
+}
+```
+
+Response:
+```json
+{
+  "comment": {
+    "id": "c-1",
+    "content": "Updated comment text",
+    "score": 5,
+    "status": "active",
+    "created_at": "2026-02-12T10:00:00Z",
+    "updated_at": "2026-02-12T11:30:00Z"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Delete Your Comment</strong></summary>
+
+**POST** `/comments-delete`
+
+Auth: Required
+
+Request:
+```json
+{
+  "comment_id": "c-1"
+}
+```
+
+Response:
+```json
+{
+  "comment": {
+    "id": "c-1",
+    "status": "deleted",
+    "updated_at": "2026-02-12T11:35:00Z"
+  }
+}
+```
+
+</details>
+
 ---
 
 ## Replies
@@ -242,6 +300,59 @@ Response:
 {
   "reply_id": "r-1",
   "score": 4
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Update Your Reply</strong></summary>
+
+**POST** `/replies-update`
+
+Auth: Required
+
+Request:
+```json
+{
+  "reply_id": "r-1",
+  "content": "Updated reply text"
+}
+```
+
+Response:
+```json
+{
+  "reply": {
+    "id": "r-1",
+    "content": "Updated reply text",
+    "score": 3,
+    "created_at": "2026-02-12T10:35:00Z",
+    "updated_at": "2026-02-12T11:40:00Z"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Delete Your Reply</strong></summary>
+
+**POST** `/replies-delete`
+
+Auth: Required
+
+Request:
+```json
+{
+  "reply_id": "r-1"
+}
+```
+
+Response:
+```json
+{
+  "message": "Reply deleted successfully"
 }
 ```
 
@@ -421,10 +532,14 @@ GET /comments-list?mediaId=anime-1&limit=5&cursor=2026-02-12T10:00:00Z
 |------|----------|------|
 | Get comments | GET `/comments-list` | Optional |
 | Create comment | POST `/comments-create` | Yes |
+| Update comment | POST `/comments-update` | Yes |
+| Delete comment | POST `/comments-delete` | Yes |
 | Vote comment | POST `/comments-vote` | Yes |
 | Report comment | POST `/comments-report` | Yes |
 | Get replies | GET `/replies-list` | Optional |
 | Create reply | POST `/replies-create` | Yes |
+| Update reply | POST `/replies-update` | Yes |
+| Delete reply | POST `/replies-delete` | Yes |
 | Vote reply | POST `/replies-vote` | Yes |
 | Get reports | GET `/moderation-reports` | Mod+ |
 | Change status | POST `/moderation-comment-status` | Mod+ |

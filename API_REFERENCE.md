@@ -206,6 +206,64 @@ Response (201):
 
 </details>
 
+<details>
+<summary><strong>POST /comments-update</strong> (Protected)</summary>
+
+Update your own comment.
+
+**Limits:** 10 req/min per user
+
+Request:
+```json
+{
+  "comment_id": "uuid",
+  "content": "Updated comment text"
+}
+```
+
+Response (200):
+```json
+{
+  "comment": {
+    "id": "uuid",
+    "content": "Updated comment text",
+    "score": 5,
+    "status": "active",
+    "created_at": "2026-02-12T...",
+    "updated_at": "2026-02-12T..."
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>POST /comments-delete</strong> (Protected)</summary>
+
+Delete your own comment (marks as deleted).
+
+**Limits:** 10 req/min per user
+
+Request:
+```json
+{
+  "comment_id": "uuid"
+}
+```
+
+Response (200):
+```json
+{
+  "comment": {
+    "id": "uuid",
+    "status": "deleted",
+    "updated_at": "2026-02-12T..."
+  }
+}
+```
+
+</details>
+
 ---
 
 ## Replies
@@ -293,6 +351,59 @@ Response (200):
 {
   "reply_id": "uuid",
   "score": 3
+}
+```
+
+</details>
+
+<details>
+<summary><strong>POST /replies-update</strong> (Protected)</summary>
+
+Update your own reply.
+
+**Limits:** 10 req/min per user
+
+Request:
+```json
+{
+  "reply_id": "uuid",
+  "content": "Updated reply text"
+}
+```
+
+Response (200):
+```json
+{
+  "reply": {
+    "id": "uuid",
+    "content": "Updated reply text",
+    "score": 2,
+    "created_at": "2026-02-12T...",
+    "updated_at": "2026-02-12T..."
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>POST /replies-delete</strong> (Protected)</summary>
+
+Delete your own reply.
+
+**Limits:** 10 req/min per user
+
+Request:
+```json
+{
+  "reply_id": "uuid"
+}
+```
+
+Response (200):
+```json
+{
+  "message": "Reply deleted successfully"
 }
 ```
 

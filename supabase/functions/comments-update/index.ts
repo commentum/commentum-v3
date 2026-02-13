@@ -9,39 +9,31 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
-  console.log("replies-create called with method:", req.method);
-  console.log("Authorization header:", req.headers.get("Authorization")?.substring(0, 20) + "...");
-
   if (req.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
 
   const auth = await authenticate(req);
-  if (auth instanceof Response) {
-    console.error("Authentication failed");
-    return auth;
-  }
+  if (auth instanceof Response) return auth;
 
-  console.log("Authentication successful, userId:", auth.userId);
-
-  const rl = checkRateLimit(`reply:${auth.userId}`, RATE_LIMIT);
+  const rl = checkRateLimit(`comment-update:${auth.userId}`, RATE_LIMIT);
   if (!rl.allowed) {
-    return errorResponse("Too many replies. Try again later.", 429);
+    return errorResponse("Too many updates. Try again later.", 429);
   }
 
-  let body: { content?: string; comment_id?: string };
+  let body: { comment_id?: string; content?: string };
   try {
     body = await req.json();
   } catch {
     return errorResponse("Invalid JSON body");
   }
 
-  const { content, comment_id } = body;
-  if (!content || typeof content !== "string") {
-    return errorResponse("content is required and must be a string");
-  }
+  const { comment_id, content } = body;
   if (!comment_id || typeof comment_id !== "string") {
-    return errorResponse("comment_id is required and must be a string");
+    return errorResponse("comment_id is required");
+  }
+  if (!content || typeof content !== "string") {
+    return errorResponse("content is required");
   }
 
   const trimmed = content.trim();
@@ -54,10 +46,10 @@ Deno.serve(async (req) => {
 
   const db = getSupabaseClient();
 
-  // Verify comment exists
+  // Verify comment exists and belongs to user
   const { data: comment, error: commentErr } = await db
     .from("comments")
-    .select("id")
+    .select("id, user_id, status")
     .eq("id", comment_id)
     .maybeSingle();
 
@@ -65,15 +57,25 @@ Deno.serve(async (req) => {
     return errorResponse("Comment not found", 404);
   }
 
-  const { data: reply, error } = await db
-    .from("comment_replies")
-    .insert({ user_id: auth.userId, content: trimmed, comment_id })
-    .select("id, content, score, created_at, updated_at")
-    .single();
-
-  if (error) {
-    return errorResponse("Failed to create reply", 500);
+  if (comment.user_id !== auth.userId) {
+    return errorResponse("You can only edit your own comments", 403);
   }
 
-  return jsonResponse({ reply }, 201);
+  if (comment.status !== "active") {
+    return errorResponse("Cannot edit inactive comment", 400);
+  }
+
+  // Update comment
+  const { data: updated, error } = await db
+    .from("comments")
+    .update({ content: trimmed, updated_at: new Date().toISOString() })
+    .eq("id", comment_id)
+    .select("id, content, score, status, created_at, updated_at")
+    .single();
+
+  if (error || !updated) {
+    return errorResponse("Failed to update comment", 500);
+  }
+
+  return jsonResponse({ comment: updated });
 });

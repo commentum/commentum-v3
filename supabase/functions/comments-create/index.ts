@@ -9,12 +9,20 @@ Deno.serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  console.log("comments-create called with method:", req.method);
+  console.log("Authorization header:", req.headers.get("Authorization")?.substring(0, 20) + "...");
+
   if (req.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
 
   const auth = await authenticate(req);
-  if (auth instanceof Response) return auth;
+  if (auth instanceof Response) {
+    console.error("Authentication failed");
+    return auth;
+  }
+
+  console.log("Authentication successful, userId:", auth.userId);
 
   const rl = checkRateLimit(`comment:${auth.userId}`, RATE_LIMIT);
   if (!rl.allowed) {
