@@ -80,7 +80,7 @@ Response:
 
 Auth: Optional (includes `user_vote` if authenticated)
 
-Response (includes up to 5 replies per comment):
+Response (includes up to 5 reply previews per comment):
 ```json
 {
   "comments": [
@@ -88,14 +88,20 @@ Response (includes up to 5 replies per comment):
       "id": "c-1",
       "content": "This anime is amazing!",
       "score": 15,
-      "username": "john_doe",
+      "user": {
+        "username": "john_doe",
+        "avatar_url": "https://..."
+      },
       "status": "active",
       "replies": [
         {
           "id": "r-1",
           "content": "I agree completely!",
           "score": 3,
-          "username": "jane_doe",
+          "user": {
+            "username": "jane_doe",
+            "avatar_url": "https://..."
+          },
           "user_vote": 1
         }
       ],
@@ -104,6 +110,7 @@ Response (includes up to 5 replies per comment):
       "user_vote": null
     }
   ],
+  "comment_count": 42,
   "next_cursor": "2026-02-12T10:00:00Z"
 }
 ```
@@ -125,11 +132,15 @@ Response:
       "id": "r-1",
       "content": "I agree completely!",
       "score": 3,
-      "username": "jane_doe",
+      "user": {
+        "username": "jane_doe",
+        "avatar_url": "https://..."
+      },
       "created_at": "2026-02-12T10:35:00Z",
       "user_vote": -1
     }
   ],
+  "reply_count": 15,
   "next_cursor": "2026-02-12T10:35:00Z"
 }
 ```
@@ -147,7 +158,8 @@ Request:
 ```json
 {
   "media_id": "anime-1",
-  "content": "Best anime ever!"
+  "content": "Best anime ever!",
+  "client": "my-app" // optional
 }
 ```
 
@@ -177,7 +189,8 @@ Request:
 ```json
 {
   "parent_id": "c-1", // or reply id
-  "content": "I totally agree!"
+  "content": "I totally agree!",
+  "client": "my-app" // optional
 }
 ```
 

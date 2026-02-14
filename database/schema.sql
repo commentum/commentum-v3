@@ -48,6 +48,7 @@ CREATE TABLE public.posts (
   media_id TEXT,
   content TEXT NOT NULL CHECK (char_length(content) <= 500),
   score INTEGER NOT NULL DEFAULT 0,
+  client TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'hidden', 'removed', 'deleted')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

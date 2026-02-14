@@ -110,7 +110,8 @@ Create a comment (root post) or a reply.
 ```json
 {
   "media_id": "anime-123",
-  "content": "Great anime!"
+  "content": "Great anime!",
+  "client": "app-name" // optional
 }
 ```
 
@@ -118,7 +119,8 @@ Create a comment (root post) or a reply.
 ```json
 {
   "parent_id": "uuid (post id to reply to)",
-  "content": "I agree!"
+  "content": "I agree!",
+  "client": "app-name" // optional
 }
 ```
 
@@ -228,13 +230,17 @@ Response (200 - Comments):
       "content": "Great anime!",
       "score": 5,
       "status": "active",
-      "username": "john_doe",
+      "user": {
+        "username": "john_doe",
+        "avatar_url": "https://..."
+      },
       "replies": [ ... ],
       "has_more_replies": false,
       "replies_count": 1,
       "user_vote": 1
     }
   ],
+  "comment_count": 42,
   "next_cursor": "..."
 }
 ```
@@ -247,9 +253,14 @@ Response (200 - Replies):
       "id": "uuid",
       "content": "I agree!",
       "score": 2,
-      ...
+      "user": {
+        "username": "jane_doe",
+        "avatar_url": "https://..."
+      },
+      "user_vote": -1
     }
   ],
+  "reply_count": 15,
   "next_cursor": "..."
 }
 ```
@@ -415,9 +426,9 @@ Response (200):
 | Endpoint | Limit |
 |----------|-------|
 | `/auth` | 10/min per IP |
-| `/posts` (Create Comment) | 5/min per user |
-| `/posts` (Create Reply) | 10/min per user |
-| `/posts` (Update/Delete) | 10/min per user |
+| `/posts` (Create) | 5/min per user |
+| `/posts` (Update) | 10/min per user |
+| `/posts` (Delete) | 10/min per user |
 | `/votes` | 30/min per user |
 | `/reports` | 5/min per user |
 
@@ -432,8 +443,11 @@ Response (200):
   "content": "string (1-500 chars)",
   "score": "number",
   "status": "active | hidden | removed | deleted",
-  "username": "string",
-  "avatar_url": "string | null",
+  "user": {
+    "username": "string",
+    "avatar_url": "string | null"
+  },
+  "client": "string | null",
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp",
   "replies": "Reply[]",
@@ -449,9 +463,13 @@ Response (200):
   "id": "uuid",
   "content": "string (1-500 chars)",
   "score": "number",
-  "username": "string",
-  "avatar_url": "string | null",
-  "parent_reply_id": "uuid | null (for nested replies)",
+  "user": {
+    "username": "string",
+    "avatar_url": "string | null"
+  },
+  "client": "string | null",
+  "parent_id": "uuid (parent post)",
+  "root_id": "uuid (root comment)",
   "created_at": "ISO timestamp",
   "updated_at": "ISO timestamp",
   "user_vote": "1 | -1 | null (if authenticated)"

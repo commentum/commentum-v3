@@ -38,14 +38,14 @@ Deno.serve(async (req) => {
             const rl = checkRateLimit(`post-create:${auth.userId}`, RATE_LIMIT_POST);
             if (!rl.allowed) return errorResponse("Too many posts. Try again later.", 429);
 
-            let body: { content?: string; media_id?: string; parent_id?: string };
+            let body: { content?: string; media_id?: string; parent_id?: string; client?: string };
             try {
                 body = await req.json();
             } catch {
                 return errorResponse("Invalid JSON body");
             }
 
-            const { content, media_id, parent_id } = body;
+            const { content, media_id, parent_id, client } = body;
 
             // Validation
             if (!content || typeof content !== "string") {
@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
                     content: trimmed,
                     media_id: media_id || null,
                     parent_id: parent_id || null,
+                    client: client || null,
                     status: "active"
                 })
                 .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
@@ -267,12 +268,8 @@ Deno.serve(async (req) => {
 
                         return {
                             ...p,
-                            username: p.users?.username || "unknown",
-                            avatar_url: p.users?.avatar_url || null,
                             replies: topReplies.map((r: any) => ({
                                 ...r,
-                                username: r.users?.username || "unknown",
-                                avatar_url: r.users?.avatar_url || null,
                             })),
                             has_more_replies: hasMoreReplies,
                             replies_count: replyCount || 0,
@@ -300,8 +297,6 @@ Deno.serve(async (req) => {
                 // Just formatting for replies list
                 result = (posts || []).map((p: any) => ({
                     ...p,
-                    username: p.users?.username || "unknown",
-                    avatar_url: p.users?.avatar_url || null,
                 }));
             }
 
