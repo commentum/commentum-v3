@@ -227,19 +227,40 @@ Deno.serve(async (req) => {
             if (error) return errorResponse("Failed to fetch posts", 500);
 
             let result = [];
+            let totalCommentCount = 0;
+            let totalReplyCount = 0;
 
             // If listing root comments, fetch previews of replies
             if (media_id) {
+                // Get total comment count for this media
+                const { count: commentCount } = await db
+                    .from("posts")
+                    .select("id", { count: "exact", head: true })
+                    .eq("media_id", media_id)
+                    .is("parent_id", null)
+                    .eq("status", "active");
+                totalCommentCount = commentCount || 0;
+
                 result = await Promise.all(
                     (posts || []).map(async (p: any) => {
+                        // Preview replies (top 5 + 1 to check has_more)
                         const { data: replies } = await db
                             .from("posts")
                             .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, user:users!inner(username, avatar_url)")
                             .eq("root_id", p.id)
                             .neq("id", p.id)
+                            .eq("status", "active")
                             .order("score", { ascending: false })
                             .order("created_at", { ascending: false })
                             .limit(6);
+
+                        // Exact total reply count for this comment
+                        const { count: replyCount } = await db
+                            .from("posts")
+                            .select("id", { count: "exact", head: true })
+                            .eq("root_id", p.id)
+                            .neq("id", p.id)
+                            .eq("status", "active");
 
                         const hasMoreReplies = (replies?.length || 0) > 5;
                         const topReplies = (replies || []).slice(0, 5);
@@ -254,11 +275,28 @@ Deno.serve(async (req) => {
                                 avatar_url: r.users?.avatar_url || null,
                             })),
                             has_more_replies: hasMoreReplies,
-                            replies_count: replies?.length || 0,
+                            replies_count: replyCount || 0,
                         };
                     })
                 );
             } else {
+                // Get total reply count
+                let replyCountQuery = db
+                    .from("posts")
+                    .select("id", { count: "exact", head: true })
+                    .eq("status", "active");
+
+                if (parent_id) {
+                    replyCountQuery = replyCountQuery.eq("parent_id", parent_id);
+                } else if (root_id) {
+                    replyCountQuery = replyCountQuery
+                        .eq("root_id", root_id)
+                        .eq("parent_id", root_id);
+                }
+
+                const { count: replyCount } = await replyCountQuery;
+                totalReplyCount = replyCount || 0;
+
                 // Just formatting for replies list
                 result = (posts || []).map((p: any) => ({
                     ...p,
@@ -301,11 +339,19 @@ Deno.serve(async (req) => {
                 result.length === limit ? result[result.length - 1].created_at : null;
 
             // Wrap in appropriate key
-            const responseKey = media_id ? "comments" : "replies";
-            return jsonResponse({
-                [responseKey]: result, // "comments" or "replies"
-                next_cursor: nextCursor,
-            });
+            if (media_id) {
+                return jsonResponse({
+                    comments: result,
+                    comment_count: totalCommentCount,
+                    next_cursor: nextCursor,
+                });
+            } else {
+                return jsonResponse({
+                    replies: result,
+                    reply_count: totalReplyCount,
+                    next_cursor: nextCursor,
+                });
+            }
         }
 
         return errorResponse("Method not allowed", 405);
