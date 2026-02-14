@@ -133,6 +133,10 @@ Response (201):
     "parent_id": null, // or uuid if reply
     "root_id": "uuid", // auto-assigned
     "media_id": "anime-123", // or null if reply
+    "user": {
+      "username": "name",
+      "avatar_url": "https://......"
+    },
     "created_at": "2026-02-12T...",
     "updated_at": "2026-02-12T..."
   }

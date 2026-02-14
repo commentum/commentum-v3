@@ -87,6 +87,7 @@ SELECT id, username, role, created_at FROM public.users;
 
 -- TRIGGERS FOR SCORE SYNC
 
+DROP TRIGGER IF EXISTS trg_sync_post_score ON public.votes;
 CREATE OR REPLACE FUNCTION public.handle_post_score()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -107,12 +108,17 @@ FOR EACH ROW EXECUTE FUNCTION public.handle_post_score();
 
 -- TRIGGER FOR AUTO ROOT_ID ASSIGNMENT
 
+DROP TRIGGER IF EXISTS trg_assign_root_id ON public.posts;
 CREATE OR REPLACE FUNCTION public.handle_root_id()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.parent_id IS NOT NULL THEN
-    SELECT COALESCE(root_id, id) INTO NEW.root_id 
-    FROM public.posts WHERE id = NEW.parent_id;
+  IF NEW.parent_id IS NULL THEN
+    NEW.root_id := NEW.id;
+  ELSE  
+    SELECT COALESCE(root_id, id) 
+    INTO NEW.root_id 
+    FROM public.posts 
+      WHERE id = NEW.parent_id;
   END IF;
   RETURN NEW;
 END;

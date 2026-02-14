@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
       post_id,
       posts!inner(
         id, content, status, user_id, 
-        users!inner(username, avatar_url),
+        user:users!inner(username, avatar_url),
         parent_id,
         parent:posts!parent_id(
           id, content, 

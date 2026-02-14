@@ -78,10 +78,9 @@ Deno.serve(async (req) => {
                     content: trimmed,
                     media_id: media_id || null,
                     parent_id: parent_id || null,
-                    root_id: null, // triggers handle this
                     status: "active"
                 })
-                .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, users!inner(username, avatar_url)")
+                .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
                 .single();
 
             if (error) {
@@ -196,7 +195,7 @@ Deno.serve(async (req) => {
 
             let query = db
                 .from("posts")
-                .select("id, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, users!inner(username, avatar_url)")
+                .select("id, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
                 .eq("status", "active")
                 .order("score", { ascending: false })
                 .order("created_at", { ascending: false })
@@ -235,7 +234,7 @@ Deno.serve(async (req) => {
                     (posts || []).map(async (p: any) => {
                         const { data: replies } = await db
                             .from("posts")
-                            .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, users!inner(username, avatar_url)")
+                            .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, user:users!inner(username, avatar_url)")
                             .eq("root_id", p.id)
                             .neq("id", p.id)
                             .order("score", { ascending: false })

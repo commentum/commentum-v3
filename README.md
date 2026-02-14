@@ -37,7 +37,7 @@ npm install && npm run dev
 ## Documentation
 
 - [API_REFERENCE](./API_REFERENCE.md) - Full API endpoints & responses
-- [USAGE](./USAGE.md) - Real curl examples for every endpoint
+- [USAGE](./USAGE.md) - Examples for every endpoint
 
 
 ---
