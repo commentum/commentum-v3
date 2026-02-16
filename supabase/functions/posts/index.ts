@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
 
             let query = db
                 .from("posts")
-                .select("id, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
+                .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
                 .eq("status", "active")
                 .order("score", { ascending: false })
                 .order("created_at", { ascending: false })
@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
                         // Preview replies (top 5 + 1 to check has_more)
                         const { data: replies } = await db
                             .from("posts")
-                            .select("id, content, score, created_at, updated_at, user_id, parent_id, root_id, user:users!inner(username, avatar_url)")
+                            .select("id, client, content, score, created_at, updated_at, user_id, parent_id, root_id, user:users!inner(username, avatar_url)")
                             .eq("root_id", p.id)
                             .neq("id", p.id)
                             .eq("status", "active")
