@@ -1,17 +1,6 @@
 BEGIN;
-
-DROP FUNCTION IF EXISTS public.recalculate_comment_score(UUID) CASCADE;
-DROP FUNCTION IF EXISTS public.recalculate_reply_score(UUID) CASCADE;
-DROP FUNCTION IF EXISTS public.count_unresolved_reports(UUID) CASCADE;
 DROP VIEW IF EXISTS public.users_public CASCADE;
-DROP TABLE IF EXISTS public.comment_reports CASCADE;
-DROP TABLE IF EXISTS public.reply_votes CASCADE;
-DROP TABLE IF EXISTS public.comment_replies CASCADE;
-DROP TABLE IF EXISTS public.comment_votes CASCADE;
-DROP TABLE IF EXISTS public.comments CASCADE;
 DROP TABLE IF EXISTS public.sessions CASCADE;
-
--- NEW UNIFIED TABLES
 DROP TABLE IF EXISTS public.reports CASCADE;
 DROP TABLE IF EXISTS public.votes CASCADE;
 DROP TABLE IF EXISTS public.posts CASCADE;
@@ -46,6 +35,7 @@ CREATE TABLE public.posts (
   parent_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
   root_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
   media_id TEXT,
+  media_provider TEXT,
   content TEXT NOT NULL CHECK (char_length(content) <= 500),
   score INTEGER NOT NULL DEFAULT 0,
   client TEXT,
@@ -107,24 +97,36 @@ CREATE TRIGGER trg_sync_post_score
 AFTER INSERT OR UPDATE OR DELETE ON public.votes
 FOR EACH ROW EXECUTE FUNCTION public.handle_post_score();
 
--- TRIGGER FOR AUTO ROOT_ID ASSIGNMENT
+-- TRIGGER FOR AUTO ROOT_ID and MEDIA_PROVIDER ASSIGNMENT
 
-DROP TRIGGER IF EXISTS trg_assign_root_id ON public.posts;
-CREATE OR REPLACE FUNCTION public.handle_root_id()
+DROP TRIGGER IF EXISTS trg_assign_post_metadata ON public.posts;
+
+CREATE OR REPLACE FUNCTION public.handle_post_metadata()
 RETURNS TRIGGER AS $$
+DECLARE
+  parent_root_id UUID;
+  parent_media_provider TEXT;
 BEGIN
+  -- Case 1: Root post
   IF NEW.parent_id IS NULL THEN
     NEW.root_id := NEW.id;
-  ELSE  
-    SELECT COALESCE(root_id, id) 
-    INTO NEW.root_id 
-    FROM public.posts 
-      WHERE id = NEW.parent_id;
+
+  -- Case 2: Reply post
+  ELSE
+    SELECT COALESCE(root_id, id), media_provider
+    INTO parent_root_id, parent_media_provider
+    FROM public.posts
+    WHERE id = NEW.parent_id;
+
+    NEW.root_id := parent_root_id;
+    NEW.media_provider := parent_media_provider;
   END IF;
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_assign_root_id
+CREATE TRIGGER trg_assign_post_metadata
 BEFORE INSERT ON public.posts
-FOR EACH ROW EXECUTE FUNCTION public.handle_root_id();
+FOR EACH ROW
+EXECUTE FUNCTION public.handle_post_metadata();

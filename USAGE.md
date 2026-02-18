@@ -159,6 +159,7 @@ Request:
 {
   "media_id": "anime-1",
   "content": "Best anime ever!",
+  "media_provider": "anilist",
   "client": "my-app" // optional
 }
 ```
@@ -172,6 +173,7 @@ Response:
     "status": "active",
     "created_at": "2026-02-12T10:30:00Z",
     "media_id": "anime-1",
+    "media_provider": "anilist",
     "root_id": "c-2"
   }
 }

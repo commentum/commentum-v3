@@ -110,6 +110,7 @@ Create a comment (root post) or a reply.
 ```json
 {
   "media_id": "anime-123",
+  "media_provider": "anilist",
   "content": "Great anime!",
   "client": "app-name" // optional
 }
@@ -135,6 +136,7 @@ Response (201):
     "parent_id": null, // or uuid if reply
     "root_id": "uuid", // auto-assigned
     "media_id": "anime-123", // or null if reply
+    "media_provider": "anilist", // or null if reply
     "user": {
       "username": "name",
       "avatar_url": "https://......"

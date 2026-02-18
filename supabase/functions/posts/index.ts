@@ -38,14 +38,14 @@ Deno.serve(async (req) => {
             const rl = checkRateLimit(`post-create:${auth.userId}`, RATE_LIMIT_POST);
             if (!rl.allowed) return errorResponse("Too many posts. Try again later.", 429);
 
-            let body: { content?: string; media_id?: string; parent_id?: string; client?: string };
+            let body: { content?: string; media_id?: string; media_provider?: string, parent_id?: string; client?: string };
             try {
                 body = await req.json();
             } catch {
                 return errorResponse("Invalid JSON body");
             }
 
-            const { content, media_id, parent_id, client } = body;
+            const { content, media_id, media_provider, parent_id, client } = body;
 
             // Validation
             if (!content || typeof content !== "string") {
@@ -77,11 +77,12 @@ Deno.serve(async (req) => {
                     user_id: auth.userId,
                     content: trimmed,
                     media_id: media_id || null,
+                    media_provider: media_provider || null,
                     parent_id: parent_id || null,
                     client: client || null,
                     status: "active"
                 })
-                .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
+                .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, media_provider, user:users!inner(username, avatar_url)")
                 .single();
 
             if (error) {
@@ -196,7 +197,7 @@ Deno.serve(async (req) => {
 
             let query = db
                 .from("posts")
-                .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, user:users!inner(username, avatar_url)")
+                .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, media_provider, user:users!inner(username, avatar_url)")
                 .eq("status", "active")
                 .order("score", { ascending: false })
                 .order("created_at", { ascending: false })
