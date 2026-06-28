@@ -36,6 +36,7 @@ CREATE TABLE public.posts (
   root_id UUID REFERENCES public.posts(id) ON DELETE CASCADE,
   media_id TEXT,
   media_provider TEXT,
+  episode_number INTEGER,
   content TEXT NOT NULL CHECK (char_length(content) <= 500),
   score INTEGER NOT NULL DEFAULT 0,
   client TEXT,
@@ -68,6 +69,7 @@ CREATE TABLE public.reports (
 
 CREATE INDEX idx_sessions_user_id ON public.sessions(user_id);
 CREATE INDEX idx_posts_media_id ON public.posts(media_id) WHERE parent_id IS NULL;
+CREATE INDEX idx_posts_media_episode ON public.posts(media_id, episode_number) WHERE parent_id IS NULL;
 CREATE INDEX idx_posts_root_id ON public.posts(root_id);
 CREATE INDEX idx_posts_created_at ON public.posts(created_at);
 CREATE INDEX idx_votes_post_id ON public.votes(post_id);
@@ -105,7 +107,9 @@ CREATE OR REPLACE FUNCTION public.handle_post_metadata()
 RETURNS TRIGGER AS $$
 DECLARE
   parent_root_id UUID;
+  parent_media_id TEXT;
   parent_media_provider TEXT;
+  parent_episode_number INTEGER;
 BEGIN
   -- Case 1: Root post
   IF NEW.parent_id IS NULL THEN
@@ -113,13 +117,15 @@ BEGIN
 
   -- Case 2: Reply post
   ELSE
-    SELECT COALESCE(root_id, id), media_provider
-    INTO parent_root_id, parent_media_provider
+    SELECT COALESCE(root_id, id), media_id, media_provider, episode_number
+    INTO parent_root_id, parent_media_id, parent_media_provider, parent_episode_number
     FROM public.posts
     WHERE id = NEW.parent_id;
 
     NEW.root_id := parent_root_id;
-    NEW.media_provider := parent_media_provider;
+    NEW.media_id := COALESCE(NEW.media_id, parent_media_id);
+    NEW.media_provider := COALESCE(NEW.media_provider, parent_media_provider);
+    NEW.episode_number := COALESCE(NEW.episode_number, parent_episode_number);
   END IF;
 
   RETURN NEW;

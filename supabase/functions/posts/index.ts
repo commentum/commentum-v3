@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
             const rl = checkRateLimit(`post-create:${auth.userId}`, RATE_LIMIT_POST);
             if (!rl.allowed) return errorResponse("Too many posts. Try again later.", 429);
 
-            let body: { content?: string; media_id?: string; media_provider?: string, parent_id?: string; client?: string };
+            let body: { content?: string; media_id?: string; media_provider?: string, parent_id?: string; client?: string; episode_number?: number | null };
             try {
                 body = await req.json();
             } catch {
@@ -46,6 +46,11 @@ Deno.serve(async (req) => {
             }
 
             const { content, media_id, media_provider, parent_id, client } = body;
+            let episode_number = body.episode_number !== undefined ? body.episode_number : null;
+            if (episode_number !== null && (typeof episode_number !== "number" || isNaN(episode_number) || episode_number < 0)) {
+                return errorResponse("episode_number must be a valid non-negative integer");
+            }
+            if (episode_number !== null) episode_number = Math.floor(episode_number);
 
             // Validation
             if (!content || typeof content !== "string") {
@@ -59,30 +64,48 @@ Deno.serve(async (req) => {
                 return errorResponse("Either media_id (for comments) or parent_id (for replies) is required");
             }
 
-            // If reply, verify parent exists
+            let finalMediaId = media_id || null;
+            let finalMediaProvider = media_provider || null;
+            let finalEpisodeNumber = episode_number;
+            let finalRootId: string | null = null;
+
+            // If reply, verify parent exists and inherit metadata
             if (parent_id) {
                 const { data: parentPost, error: parentErr } = await db
                     .from("posts")
-                    .select("id")
+                    .select("id, root_id, media_id, media_provider, episode_number")
                     .eq("id", parent_id)
                     .maybeSingle();
 
                 if (parentErr || !parentPost) return errorResponse("Parent post not found", 404);
+
+                finalRootId = parentPost.root_id || parentPost.id;
+                finalMediaId = finalMediaId || parentPost.media_id || null;
+                finalMediaProvider = finalMediaProvider || parentPost.media_provider || null;
+                if (finalEpisodeNumber === null && parentPost.episode_number !== undefined) {
+                    finalEpisodeNumber = parentPost.episode_number ?? null;
+                }
+            }
+
+            const insertPayload: any = {
+                user_id: auth.userId,
+                content: trimmed,
+                media_id: finalMediaId,
+                media_provider: finalMediaProvider,
+                episode_number: finalEpisodeNumber,
+                parent_id: parent_id || null,
+                client: client || null,
+                status: "active"
+            };
+            if (finalRootId) {
+                insertPayload.root_id = finalRootId;
             }
 
             // Insert
             const { data: post, error } = await db
                 .from("posts")
-                .insert({
-                    user_id: auth.userId,
-                    content: trimmed,
-                    media_id: media_id || null,
-                    media_provider: media_provider || null,
-                    parent_id: parent_id || null,
-                    client: client || null,
-                    status: "active"
-                })
-                .select("id, content, score, status, created_at, updated_at, parent_id, root_id, media_id, media_provider, user:users!inner(username, avatar_url)")
+                .insert(insertPayload)
+                .select("id, client, content, score, status, created_at, updated_at, parent_id, root_id, media_id, media_provider, episode_number, user:users!inner(username, avatar_url)")
                 .single();
 
             if (error) {
@@ -130,7 +153,7 @@ Deno.serve(async (req) => {
                 .from("posts")
                 .update({ content: trimmed, updated_at: new Date().toISOString() })
                 .eq("id", id)
-                .select("id, content, score, status, created_at, updated_at")
+                .select("id, client, content, score, status, created_at, updated_at, parent_id, root_id, media_id, media_provider, episode_number, user:users!inner(username, avatar_url)")
                 .single();
 
             if (error || !updated) return errorResponse("Failed to update post", 500);
@@ -190,6 +213,7 @@ Deno.serve(async (req) => {
             const media_id = url.searchParams.get("media_id");
             const root_id = url.searchParams.get("root_id");
             const parent_id = url.searchParams.get("parent_id");
+            const episode_param = url.searchParams.get("episode_number");
 
             if (!media_id && !root_id && !parent_id) {
                 return errorResponse("media_id (for comments) or root_id/parent_id (for replies) is required", 400);
@@ -197,7 +221,7 @@ Deno.serve(async (req) => {
 
             let query = db
                 .from("posts")
-                .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, media_provider, user:users!inner(username, avatar_url)")
+                .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, media_provider, episode_number, user:users!inner(username, avatar_url)")
                 .eq("status", "active")
                 .order("score", { ascending: false })
                 .order("created_at", { ascending: false })
@@ -208,16 +232,27 @@ Deno.serve(async (req) => {
                 query = query
                     .eq("media_id", media_id)
                     .is("parent_id", null);
+
+                if (episode_param !== null && episode_param !== undefined) {
+                    if (episode_param === "0" || episode_param.toLowerCase() === "none" || episode_param.toLowerCase() === "null") {
+                        query = query.is("episode_number", null);
+                    } else {
+                        const epNum = parseInt(episode_param);
+                        if (!isNaN(epNum)) {
+                            query = query.eq("episode_number", epNum);
+                        }
+                    }
+                }
             }
             // 2. List Replies
             else if (root_id || parent_id) {
                 if (parent_id) {
                     query = query.eq("parent_id", parent_id);
                 } else if (root_id) {
-                    // First level replies to a root post
+                    // All replies to a root post
                     query = query
                         .eq("root_id", root_id)
-                        .eq("parent_id", root_id);
+                        .neq("id", root_id);
                 }
             }
 
@@ -235,34 +270,39 @@ Deno.serve(async (req) => {
             // If listing root comments, fetch previews of replies
             if (media_id) {
                 // Get total comment count for this media
-                const { count: commentCount } = await db
+                let commentCountQuery = db
                     .from("posts")
                     .select("id", { count: "exact", head: true })
                     .eq("media_id", media_id)
                     .is("parent_id", null)
                     .eq("status", "active");
+
+                if (episode_param !== null && episode_param !== undefined) {
+                    if (episode_param === "0" || episode_param.toLowerCase() === "none" || episode_param.toLowerCase() === "null") {
+                        commentCountQuery = commentCountQuery.is("episode_number", null);
+                    } else {
+                        const epNum = parseInt(episode_param);
+                        if (!isNaN(epNum)) {
+                            commentCountQuery = commentCountQuery.eq("episode_number", epNum);
+                        }
+                    }
+                }
+
+                const { count: commentCount } = await commentCountQuery;
                 totalCommentCount = commentCount || 0;
 
                 result = await Promise.all(
                     (posts || []).map(async (p: any) => {
-                        // Preview replies (top 5 + 1 to check has_more)
-                        const { data: replies } = await db
+                        // Preview replies (top 5 + 1 to check has_more) along with exact reply count in a single query
+                        const { data: replies, count: replyCount } = await db
                             .from("posts")
-                            .select("id, client, content, score, created_at, updated_at, user_id, parent_id, root_id, user:users!inner(username, avatar_url)")
+                            .select("id, client, content, score, status, created_at, updated_at, user_id, parent_id, root_id, media_id, media_provider, episode_number, user:users!inner(username, avatar_url)", { count: "exact" })
                             .eq("root_id", p.id)
                             .neq("id", p.id)
                             .eq("status", "active")
                             .order("score", { ascending: false })
                             .order("created_at", { ascending: false })
                             .limit(6);
-
-                        // Exact total reply count for this comment
-                        const { count: replyCount } = await db
-                            .from("posts")
-                            .select("id", { count: "exact", head: true })
-                            .eq("root_id", p.id)
-                            .neq("id", p.id)
-                            .eq("status", "active");
 
                         const hasMoreReplies = (replies?.length || 0) > 5;
                         const topReplies = (replies || []).slice(0, 5);
@@ -289,7 +329,7 @@ Deno.serve(async (req) => {
                 } else if (root_id) {
                     replyCountQuery = replyCountQuery
                         .eq("root_id", root_id)
-                        .eq("parent_id", root_id);
+                        .neq("id", root_id);
                 }
 
                 const { count: replyCount } = await replyCountQuery;

@@ -33,13 +33,13 @@ export async function authenticate(req: Request): Promise<AuthContext | Response
   }
 
   const db = getSupabaseClient();
-  const { data: session } = await db
+  const { data: session, error } = await db
     .from("sessions")
-    .select("id, user_id, revoked, expires_at")
+    .select("id, user_id, revoked, expires_at, user:users(id, is_banned, role)")
     .eq("id", payload.sid)
     .maybeSingle();
 
-  if (!session) {
+  if (error || !session) {
     return errorResponse("Session not found", 401);
   }
   if (session.revoked) {
@@ -49,13 +49,8 @@ export async function authenticate(req: Request): Promise<AuthContext | Response
     return errorResponse("Session expired", 401);
   }
 
-  const { data: user } = await db
-    .from("users")
-    .select("id, is_banned, role")
-    .eq("id", payload.sub)
-    .maybeSingle();
-
-  if (!user) {
+  const user = Array.isArray(session.user) ? session.user[0] : session.user;
+  if (!user || user.id !== payload.sub) {
     return errorResponse("User not found", 401);
   }
   if (user.is_banned) {
